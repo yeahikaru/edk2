@@ -116,6 +116,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #define SMBIOS_TYPE_PROCESSOR_ADDITIONAL_INFORMATION      44
 #define SMBIOS_TYPE_FIRMWARE_INVENTORY_INFORMATION        45
 #define SMBIOS_TYPE_STRING_PROPERTY_INFORMATION           46
+#define SMBIOS_TYPE_TEST_TABLE                            250
 
 ///
 /// Inactive type is added from SMBIOS 2.2. Reference SMBIOS 2.6, chapter 3.3.43.
