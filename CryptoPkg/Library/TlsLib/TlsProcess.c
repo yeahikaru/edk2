@@ -81,7 +81,6 @@ TlsDoHandshake (
   TLS_CONNECTION  *TlsConn;
   UINTN           PendingBufferSize;
   INTN            Ret;
-  UINTN           ErrorCode;
 
   TlsConn           = (TLS_CONNECTION *)Tls;
   PendingBufferSize = 0;
@@ -133,19 +132,24 @@ TlsDoHandshake (
         ));
       DEBUG_CODE_BEGIN ();
       while (TRUE) {
-        ErrorCode = ERR_get_error ();
+        unsigned long  ErrorCode;
+        const char     *Func;
+        const char     *Data;
+
+        ErrorCode = ERR_get_error_all (NULL, NULL, &Func, &Data, NULL);
         if (ErrorCode == 0) {
           break;
         }
 
         DEBUG ((
           DEBUG_ERROR,
-          "%a ERROR 0x%x=L%x:F%x:R%x\n",
+          "%a ERROR 0x%x=L%x:R%x %a(): %a\n",
           __func__,
           ErrorCode,
           ERR_GET_LIB (ErrorCode),
-          ERR_GET_FUNC (ErrorCode),
-          ERR_GET_REASON (ErrorCode)
+          ERR_GET_REASON (ErrorCode),
+          Func,
+          Data
           ));
       }
 

@@ -4,7 +4,7 @@
   This module will execute the boot script saved during last boot and after that,
   control is passed to OS waking up handler.
 
-  Copyright (c) 2006 - 2022, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2024, Intel Corporation. All rights reserved.<BR>
   Copyright (c) 2017, AMD Incorporated. All rights reserved.<BR>
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
@@ -23,6 +23,7 @@
 #include <Ppi/PostBootScriptTable.h>
 #include <Ppi/EndOfPeiPhase.h>
 #include <Ppi/SmmCommunication.h>
+#include <Ppi/MpServices2.h>
 
 #include <Library/DebugLib.h>
 #include <Library/BaseLib.h>
@@ -38,6 +39,7 @@
 #include <Library/DebugAgentLib.h>
 #include <Library/LocalApicLib.h>
 #include <Library/ReportStatusCodeLib.h>
+#include <Library/MtrrLib.h>
 
 #include <Library/HobLib.h>
 #include <Library/LockBoxLib.h>
@@ -255,6 +257,12 @@ EFI_PEI_PPI_DESCRIPTOR  mPpiListEndOfPeiTable = {
 EFI_PEI_PPI_DESCRIPTOR  mPpiListS3SmmInitDoneTable = {
   (EFI_PEI_PPI_DESCRIPTOR_PPI | EFI_PEI_PPI_DESCRIPTOR_TERMINATE_LIST),
   &gEdkiiS3SmmInitDoneGuid,
+  0
+};
+
+EFI_PEI_PPI_DESCRIPTOR  mPpiListEndOfS3ResumeTable = {
+  (EFI_PEI_PPI_DESCRIPTOR_PPI | EFI_PEI_PPI_DESCRIPTOR_TERMINATE_LIST),
+  &gEdkiiEndOfS3ResumeGuid,
   0
 };
 
@@ -488,6 +496,13 @@ S3ResumeBootOs (
   PERF_INMODULE_BEGIN ("EndOfS3Resume");
 
   DEBUG ((DEBUG_INFO, "Signal EndOfS3Resume\n"));
+
+  //
+  // Install EndOfS3Resume.
+  //
+  Status = PeiServicesInstallPpi (&mPpiListEndOfS3ResumeTable);
+  ASSERT_EFI_ERROR (Status);
+
   //
   // Signal EndOfS3Resume to SMM.
   //
@@ -856,7 +871,7 @@ S3ResumeExecuteBootScript (
     SignalToSmmByCommunication (&gEdkiiS3SmmInitDoneGuid);
   }
 
-  if ((FeaturePcdGet (PcdDxeIplSwitchToLongMode)) || (sizeof (UINTN) == sizeof (UINT64))) {
+  if (FeaturePcdGet (PcdDxeIplSwitchToLongMode)) {
     AsmWriteCr3 ((UINTN)AcpiS3Context->S3NvsPageTableAddress);
   }
 
@@ -938,6 +953,20 @@ S3ResumeExecuteBootScript (
 }
 
 /**
+  Sync up the MTRR values for all processors.
+
+  @param[in] MtrrTable  Address of MTRR setting.
+**/
+VOID
+EFIAPI
+LoadMtrrData (
+  IN VOID  *MtrrTable
+  )
+{
+  MtrrSetAllMtrrs (MtrrTable);
+}
+
+/**
   Restores the platform to its preboot configuration for an S3 resume and
   jumps to the OS waking vector.
 
@@ -988,6 +1017,8 @@ S3RestoreConfig2 (
   BOOLEAN                        Build4GPageTableOnly;
   BOOLEAN                        InterruptStatus;
   IA32_CR0                       Cr0;
+  EFI_PEI_MP_SERVICES2_PPI       *MpService2Ppi;
+  MTRR_SETTINGS                  MtrrTable;
 
   TempAcpiS3Context                 = 0;
   TempEfiBootScriptExecutorVariable = 0;
@@ -1052,7 +1083,7 @@ S3RestoreConfig2 (
     CpuDeadLoop ();
   }
 
-  if ((FeaturePcdGet (PcdDxeIplSwitchToLongMode)) || (sizeof (UINTN) == sizeof (UINT64))) {
+  if (FeaturePcdGet (PcdDxeIplSwitchToLongMode)) {
     //
     // Need reconstruct page table here, since we do not trust ACPINvs.
     //
@@ -1080,6 +1111,39 @@ S3RestoreConfig2 (
       Status = SmmAccess->Open ((EFI_PEI_SERVICES **)GetPeiServicesTablePointer (), SmmAccess, Index);
     }
 
+    //
+    // Get MP Services2 Ppi to pass it to Smm S3.
+    //
+    Status = PeiServicesLocatePpi (
+               &gEfiPeiMpServices2PpiGuid,
+               0,
+               NULL,
+               (VOID **)&MpService2Ppi
+               );
+    ASSERT_EFI_ERROR (Status);
+
+    //
+    // Restore MTRR setting
+    //
+    VarSize = sizeof (MTRR_SETTINGS);
+    Status  = RestoreLockBox (
+                &gEdkiiS3MtrrSettingGuid,
+                &MtrrTable,
+                &VarSize
+                );
+    ASSERT_EFI_ERROR (Status);
+
+    //
+    // Sync up the MTRR values for all processors.
+    //
+    Status = MpService2Ppi->StartupAllCPUs (
+                              MpService2Ppi,
+                              (EFI_AP_PROCEDURE)LoadMtrrData,
+                              0,
+                              (VOID *)&MtrrTable
+                              );
+    ASSERT_EFI_ERROR (Status);
+
     SmramDescriptor  = (EFI_SMRAM_DESCRIPTOR *)GET_GUID_HOB_DATA (GuidHob);
     SmmS3ResumeState = (SMM_S3_RESUME_STATE *)(UINTN)SmramDescriptor->CpuStart;
 
@@ -1102,6 +1166,13 @@ S3RestoreConfig2 (
     DEBUG ((DEBUG_INFO, "SMM S3 Return Context2          = %x\n", SmmS3ResumeState->ReturnContext2));
     DEBUG ((DEBUG_INFO, "SMM S3 Return Stack Pointer     = %x\n", SmmS3ResumeState->ReturnStackPointer));
     DEBUG ((DEBUG_INFO, "SMM S3 Smst                     = %x\n", SmmS3ResumeState->Smst));
+
+    //
+    // 64bit PEI and 32bit DXE is not a supported combination.
+    //
+    if (SmmS3ResumeState->Signature == SMM_S3_RESUME_SMM_32) {
+      ASSERT (sizeof (UINTN) == sizeof (UINT32));
+    }
 
     //
     // Directly do the switch stack when PEI and SMM env run in the same execution mode.
@@ -1146,7 +1217,9 @@ S3RestoreConfig2 (
         AsmWriteCr0 (Cr0.UintN);
       }
 
-      AsmWriteCr3 ((UINTN)SmmS3ResumeState->SmmS3Cr3);
+      if (FeaturePcdGet (PcdDxeIplSwitchToLongMode)) {
+        AsmWriteCr3 ((UINTN)SmmS3ResumeState->SmmS3Cr3);
+      }
 
       //
       // Disable interrupt of Debug timer, since IDT table cannot work in long mode.

@@ -6,8 +6,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#ifndef __INTERNAL_CRYPT_LIB_H__
-#define __INTERNAL_CRYPT_LIB_H__
+#pragma once
 
 #undef _WIN32
 #undef _WIN64
@@ -19,6 +18,8 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <Library/BaseCryptLib.h>
 
 #include "CrtLibSupport.h"
+
+#define OPENSSL_NO_DEPRECATED  0
 
 #include <openssl/opensslv.h>
 
@@ -58,5 +59,3 @@ WrapPkcs7Data (
   OUT UINT8        **WrapData,
   OUT UINTN        *WrapDataSize
   );
-
-#endif

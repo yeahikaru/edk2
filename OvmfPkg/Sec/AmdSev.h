@@ -7,8 +7,7 @@
 
 **/
 
-#ifndef _AMD_SEV_SEC_INTERNAL_H__
-#define _AMD_SEV_SEC_INTERNAL_H__
+#pragma once
 
 /**
   Handle an SEV-ES/GHCB protocol check failure.
@@ -91,4 +90,16 @@ SevSnpIsEnabled (
   VOID
   );
 
-#endif
+/**
+  Map MMIO regions unencrypted if SEV-ES is active.
+
+  During early booting, page table entries default to having the encryption bit
+  set for SEV-ES/SEV-SNP guests. In cases where there is MMIO to an address, the
+  encryption bit should be cleared. Clear it here for any known MMIO accesses
+  during SEC, which is currently just the APIC base address.
+
+**/
+VOID
+SecMapApicBaseUnencrypted (
+  VOID
+  );

@@ -7,8 +7,7 @@
 
 **/
 
-#ifndef _FSP_API_H_
-#define _FSP_API_H_
+#pragma once
 
 #include <Pi/PiStatusCode.h>
 #include <Base.h>
@@ -139,7 +138,7 @@ typedef struct {
 ///
 typedef struct {
   ///
-  /// Revision of the structure is 2 for this version of the specification.
+  /// Revision of the structure is 3 for this version of the specification.
   ///
   UINT8                   Revision;
   UINT8                   Reserved[3];
@@ -152,7 +151,15 @@ typedef struct {
   /// occurring during FSP execution.
   ///
   EFI_PHYSICAL_ADDRESS    FspDebugHandler;
-  UINT8                   Reserved1[16];
+  ///
+  /// FspTemporaryRamSize is Optional & valid only when
+  /// FSP image attribute (BIT4) is set. If Programmed as Zero, Platform
+  /// recommended value will be used, otherwise input value will be used
+  /// to configure TemporaryRamSize. Refer FSP Integration guide for valid
+  /// TemporaryRamSize range for each platform.
+  ///
+  UINT32                  FspTemporaryRamSize;
+  UINT8                   Reserved1[12];
 } FSPT_ARCH2_UPD;
 
 ///
@@ -747,5 +754,3 @@ EFI_STATUS
 (EFIAPI *FSP_MULTI_PHASE_INIT)(
   IN FSP_MULTI_PHASE_PARAMS     *MultiPhaseInitParamPtr
   );
-
-#endif

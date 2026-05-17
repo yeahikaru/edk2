@@ -8,7 +8,7 @@
 #**/
 
 [Defines]
-  INF_VERSION                    = 0x00010005
+  INF_VERSION                    = 1.30
   BASE_NAME                      = ArmVirtPrePiUniCoreRelocatable
   FILE_GUID                      = f7d9fd14-9335-4389-80c5-334d6abfcced
   MODULE_TYPE                    = SEC
@@ -19,14 +19,8 @@
   FdtParser.c
   PrePi.c
   PrePi.h
-
-[Sources.AArch64]
-  AArch64/ArchPrePi.c
-  AArch64/ModuleEntryPoint.S
-
-[Sources.ARM]
-  Arm/ArchPrePi.c
-  Arm/ModuleEntryPoint.S
+  ArchPrePi.c
+  ModuleEntryPoint.S
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -35,9 +29,11 @@
   ArmPkg/ArmPkg.dec
   ArmPlatformPkg/ArmPlatformPkg.dec
   ArmVirtPkg/ArmVirtPkg.dec
+  OvmfPkg/OvmfPkg.dec
 
 [LibraryClasses]
   BaseLib
+  BaseMemoryLib
   DebugLib
   FdtLib
   ArmLib
@@ -45,7 +41,6 @@
   TimerLib
   SerialPortLib
   ExtractGuidedSectionLib
-  LzmaDecompressLib
   PeCoffLib
   PrePiLib
   MemoryAllocationLib
@@ -54,27 +49,21 @@
   PlatformPeiLib
   MemoryInitPeiLib
   CacheMaintenanceLib
-
-[Ppis]
-  gArmMpCoreInfoPpiGuid
+  StackCheckLib
 
 [Guids]
   gArmMpCoreInfoGuid
 
 [FeaturePcd]
   gEmbeddedTokenSpaceGuid.PcdPrePiProduceMemoryTypeInformationHob
-  gArmPlatformTokenSpaceGuid.PcdSendSgiToBringUpSecondaryCores
 
 [FixedPcd]
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString
-
-  gArmTokenSpaceGuid.PcdVFPEnabled
 
   gArmTokenSpaceGuid.PcdFdSize
   gArmTokenSpaceGuid.PcdFvSize
 
   gArmPlatformTokenSpaceGuid.PcdCPUCorePrimaryStackSize
-  gArmPlatformTokenSpaceGuid.PcdCPUCoreSecondaryStackSize
 
   gArmPlatformTokenSpaceGuid.PcdSystemMemoryUefiRegionSize
 
@@ -93,6 +82,6 @@
 [Pcd]
   gArmTokenSpaceGuid.PcdSystemMemoryBase
   gArmTokenSpaceGuid.PcdSystemMemorySize
-  gArmVirtTokenSpaceGuid.PcdDeviceTreeInitialBaseAddress
   gArmTokenSpaceGuid.PcdFdBaseAddress
   gArmTokenSpaceGuid.PcdFvBaseAddress
+  gUefiOvmfPkgTokenSpaceGuid.PcdDeviceTreeInitialBaseAddress

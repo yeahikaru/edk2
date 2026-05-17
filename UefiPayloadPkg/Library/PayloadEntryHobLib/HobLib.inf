@@ -32,8 +32,8 @@
   BaseLib
   BaseMemoryLib
   DebugLib
+  PayloadEntryHelperLib
 
 [Guids]
   gEfiHobMemoryAllocModuleGuid
   gEfiHobMemoryAllocStackGuid
-

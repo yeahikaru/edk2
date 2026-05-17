@@ -13,8 +13,7 @@
 
 **/
 
-#ifndef PLDM_H_
-#define PLDM_H_
+#pragma once
 
 #pragma pack(1)
 
@@ -40,6 +39,7 @@ typedef struct  {
 typedef PLDM_MESSAGE_HEADER PLDM_REQUEST_HEADER;
 
 #define PLDM_MESSAGE_HEADER_IS_REQUEST        1
+#define PLDM_MESSAGE_HEADER_IS_RESPONSE       0
 #define PLDM_MESSAGE_HEADER_IS_DATAGRAM       1
 #define PLDM_MESSAGE_HEADER_INSTANCE_ID_MASK  0x1f
 
@@ -79,4 +79,3 @@ typedef struct {
 
 #define PLDM_TRANSFER_OPERATION_FLAG_GET_NEXT_PART   0x00
 #define PLDM_TRANSFER_OPERATION_FLAG_GET_FIRST_PART  0x01
-#endif // PLDM_H_

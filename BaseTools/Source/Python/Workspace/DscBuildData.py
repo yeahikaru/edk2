@@ -1,8 +1,9 @@
 ## @file
 # This file is used to create a database used by build tool
 #
-# Copyright (c) 2008 - 2020, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2008 - 2025, Intel Corporation. All rights reserved.<BR>
 # (C) Copyright 2016 Hewlett Packard Enterprise Development LP<BR>
+# Copyright (C) 2025 Advanced Micro Devices, Inc. All rights reserved.
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 #
 
@@ -37,6 +38,10 @@ from functools import reduce
 from Common.Misc import SaveFileOnChange
 from Workspace.BuildClassObject import PlatformBuildClassObject, StructurePcd, PcdClassObject, ModuleBuildClassObject
 from collections import OrderedDict, defaultdict
+import json
+import os
+import shutil
+import sys
 
 def _IsFieldValueAnArray (Value):
     Value = Value.strip()
@@ -56,6 +61,7 @@ def _IsFieldValueAnArray (Value):
 
 PcdValueInitName = 'PcdValueInit'
 PcdValueCommonName = 'PcdValueCommon'
+StructuredPcdsDataName = 'StructuredPcdsData.json'
 
 PcdMainCHeader = '''
 /**
@@ -90,7 +96,7 @@ PcdMakefileHeader = '''
 
 WindowsCFLAGS = 'CFLAGS = $(CFLAGS) /wd4200 /wd4034 /wd4101 '
 LinuxCFLAGS = 'CFLAGS += -Wno-pointer-to-int-cast -Wno-unused-variable '
-PcdMakefileEnd = '''
+PcdMakefileEnd = r'''
 !INCLUDE $(BASE_TOOLS_PATH)\Source\C\Makefiles\ms.common
 !INCLUDE $(BASE_TOOLS_PATH)\Source\C\Makefiles\ms.app
 '''
@@ -103,14 +109,14 @@ $(APPFILE): $(APPLICATION)
 '''
 
 PcdGccMakefile = '''
-MAKEROOT ?= $(EDK_TOOLS_PATH)/Source/C
+MAKEROOT ?= $(EDK_TOOLS_PATH)%sSource%sC
 LIBS = -lCommon
-'''
+'''%(os.sep, os.sep)
 
 variablePattern = re.compile(r'[\t\s]*0[xX][a-fA-F0-9]+$')
 SkuIdPattern = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
 ## regular expressions for finding decimal and hex numbers
-Pattern = re.compile('^[1-9]\d*|0$')
+Pattern = re.compile(r'^[1-9]\d*|0$')
 HexPattern = re.compile(r'0[xX][0-9a-fA-F]+$')
 ## Regular expression for finding header file inclusions
 from AutoGen.GenMake import gIncludePattern
@@ -228,6 +234,21 @@ class DscBuildData(PlatformBuildClassObject):
         self._Clear()
         self.WorkspaceDir = os.getenv("WORKSPACE") if os.getenv("WORKSPACE") else ""
         self.DefaultStores = None
+        MingwBaseToolsBuild = None
+        if sys.platform == 'win32':
+            MingwBaseToolsBuild = os.getenv("BASETOOLS_MINGW_BUILD")
+        if MingwBaseToolsBuild is not None:
+            try:
+                MingwBaseToolsBuild = int(MingwBaseToolsBuild)
+            except:
+                pass
+            try:
+                MingwBaseToolsBuild = bool(MingwBaseToolsBuild)
+            except:
+                pass
+        if not isinstance(MingwBaseToolsBuild, bool):
+            MingwBaseToolsBuild = False
+        self._MingwBaseToolsBuild = MingwBaseToolsBuild
         self.SkuIdMgr = SkuClass(self.SkuName, self.SkuIds)
         self.UpdatePcdTypeDict()
     @property
@@ -443,16 +464,6 @@ class DscBuildData(PlatformBuildClassObject):
             if self._Version is None:
                 EdkLogger.error('build', ATTRIBUTE_NOT_AVAILABLE, "No PLATFORM_VERSION", File=self.MetaFile)
         return self._Version
-
-    ## Retrieve platform description file version
-    @property
-    def DscSpecification(self):
-        if self._DscSpecification is None:
-            if self._Header is None:
-                self._GetHeaderInfo()
-            if self._DscSpecification is None:
-                EdkLogger.error('build', ATTRIBUTE_NOT_AVAILABLE, "No DSC_SPECIFICATION", File=self.MetaFile)
-        return self._DscSpecification
 
     ## Retrieve OUTPUT_DIRECTORY
     @property
@@ -1247,27 +1258,6 @@ class DscBuildData(PlatformBuildClassObject):
                         if ' ' + Option not in self._BuildOptions[CurKey]:
                             self._BuildOptions[CurKey] += ' ' + Option
         return self._BuildOptions
-    def GetBuildOptionsByPkg(self, Module, ModuleType):
-
-        local_pkg = os.path.split(Module.LocalPkg())[0]
-        if self._ModuleTypeOptions is None:
-            self._ModuleTypeOptions = OrderedDict()
-        if ModuleType not in self._ModuleTypeOptions:
-            options = OrderedDict()
-            self._ModuleTypeOptions[ ModuleType] = options
-            RecordList = self._RawData[MODEL_META_DATA_BUILD_OPTION, self._Arch]
-            for ToolChainFamily, ToolChain, Option, Dummy1, Dummy2, Dummy3, Dummy4, Dummy5 in RecordList:
-                if Dummy2 not in (TAB_COMMON,local_pkg.upper(),"EDKII"):
-                    continue
-                Type = Dummy3
-                if Type.upper() == ModuleType.upper():
-                    Key = (ToolChainFamily, ToolChain)
-                    if Key not in options or not ToolChain.endswith('_FLAGS') or Option.startswith('='):
-                        options[Key] = Option
-                    else:
-                        if ' ' + Option not in options[Key]:
-                            options[Key] += ' ' + Option
-        return self._ModuleTypeOptions[ModuleType]
     def GetBuildOptionsByModuleType(self, Edk, ModuleType):
         if self._ModuleTypeOptions is None:
             self._ModuleTypeOptions = OrderedDict()
@@ -1598,7 +1588,7 @@ class DscBuildData(PlatformBuildClassObject):
         S_pcd_set = DscBuildData.OverrideByFdf(S_pcd_set,self.WorkspaceDir)
         S_pcd_set = DscBuildData.OverrideByComm(S_pcd_set)
 
-        # Create a tool to caculate structure pcd value
+        # Create a tool to calculate structure pcd value
         Str_Pcd_Values = self.GenerateByteArrayValue(S_pcd_set)
 
         if Str_Pcd_Values:
@@ -1681,7 +1671,7 @@ class DscBuildData(PlatformBuildClassObject):
             AllModulePcds = AllModulePcds | ModuleData.PcdsName
         return AllModulePcds
 
-    #Filter the StrucutrePcd that is not used by any module in dsc file and fdf file.
+    #Filter the StructurePcd that is not used by any module in dsc file and fdf file.
     def FilterStrcturePcd(self, S_pcd_set):
         UnusedStruPcds = set(S_pcd_set.keys()) - self.PlatformUsedPcds
         for (Token, TokenSpaceGuid) in UnusedStruPcds:
@@ -2058,13 +2048,6 @@ class DscBuildData(PlatformBuildClassObject):
             indicator += "->" + FieldName
         return indicator
 
-    def GetStarNum(self,Pcd):
-        if not Pcd.IsArray():
-            return 1
-        elif Pcd.IsSimpleTypeArray():
-            return len(Pcd.Capacity)
-        else:
-            return len(Pcd.Capacity) + 1
     def GenerateDefaultValueAssignFunction(self, Pcd):
         CApp = "// Default value in Dec \n"
         CApp = CApp + "void Assign_%s_%s_Default_Value(%s *Pcd){\n" % (Pcd.TokenSpaceGuidCName, Pcd.TokenCName, Pcd.BaseDatumType)
@@ -2750,12 +2733,129 @@ class DscBuildData(PlatformBuildClassObject):
                 ccflags.add(item)
             i +=1
         return ccflags
+
+    def GetStructurePcdSet (self, OutputValueFile):
+        if not os.path.isfile(OutputValueFile):
+            EdkLogger.error("GetStructurePcdSet", FILE_NOT_FOUND, "Output.txt doesn't exist", ExtraData=OutputValueFile)
+            return []
+        File = open (OutputValueFile, 'r')
+        FileBuffer = File.readlines()
+        File.close()
+
+        #start update structure pcd final value
+        StructurePcdSet = []
+        for Pcd in FileBuffer:
+            PcdValue = Pcd.split ('|')
+            PcdInfo = PcdValue[0].split ('.')
+            StructurePcdSet.append((PcdInfo[0], PcdInfo[1], PcdInfo[2], PcdInfo[3], PcdValue[2].strip()))
+        return StructurePcdSet
+
+    def GetBuildOptionsValueList(self):
+        CC_FLAGS = LinuxCFLAGS
+        if sys.platform == "win32" and not self._MingwBaseToolsBuild:
+            CC_FLAGS = WindowsCFLAGS
+        BuildOptions = OrderedDict()
+        for Options in self.BuildOptions:
+            if Options[2] != EDKII_NAME:
+                continue
+            Family = Options[0]
+            if Family and Family != self.ToolChainFamily:
+                continue
+            Target, Tag, Arch, Tool, Attr = Options[1].split("_")
+            if Tool != 'CC':
+                continue
+            if Attr != "FLAGS":
+                continue
+            if Target == TAB_STAR or Target == self._Target:
+                if Tag == TAB_STAR or Tag == self._Toolchain:
+                    if 'COMMON' not in BuildOptions:
+                        BuildOptions['COMMON'] = set()
+                    if Arch == TAB_STAR:
+                        BuildOptions['COMMON']|= self.ParseCCFlags(self.BuildOptions[Options])
+                    if Arch in self.SupArchList:
+                        if Arch not in BuildOptions:
+                            BuildOptions[Arch] = set()
+                        BuildOptions[Arch] |= self.ParseCCFlags(self.BuildOptions[Options])
+
+        if BuildOptions:
+            ArchBuildOptions = {arch:flags for arch,flags in BuildOptions.items() if arch != 'COMMON'}
+            if len(ArchBuildOptions.keys()) == 1:
+                BuildOptions['COMMON'] |= (list(ArchBuildOptions.values())[0])
+            elif len(ArchBuildOptions.keys()) > 1:
+                CommonBuildOptions = reduce(lambda x,y: x&y, ArchBuildOptions.values())
+                BuildOptions['COMMON'] |= CommonBuildOptions
+            ValueList = [item for item in BuildOptions['COMMON'] if item.startswith((r"/U","-U"))]
+            ValueList.extend([item for item in BuildOptions['COMMON'] if item.startswith((r"/D", "-D"))])
+            CC_FLAGS += " ".join(ValueList)
+        return CC_FLAGS
+
+
     def GenerateByteArrayValue (self, StructuredPcds):
         #
         # Generate/Compile/Run C application to determine if there are any flexible array members
         #
         if not StructuredPcds:
             return
+
+        StructuredPcdsData = {}
+        StoredStructuredPcdObjectPaths = {}
+        SkipPcdValueInit = False
+
+        CC_FLAGS = self.GetBuildOptionsValueList()
+
+        for PcdName in StructuredPcds:
+            Pcd = StructuredPcds[PcdName]
+            TokenSpaceGuidCName = Pcd.TokenSpaceGuidCName
+            TokenCName = Pcd.TokenCName
+
+            # Create a key using TokenSpaceGuidCName and TokenCName
+            StructuredPcdsData[f"{TokenSpaceGuidCName}_{TokenCName}"] = {
+                "DefaultValueFromDec": Pcd.DefaultValueFromDec,
+                "DefaultValues": Pcd.DefaultValues,
+                "PcdFieldValueFromComm": Pcd.PcdFieldValueFromComm,
+                "PcdFieldValueFromFdf": Pcd.PcdFieldValueFromFdf,
+                "DefaultFromDSC": Pcd.DefaultFromDSC,
+                "PcdFiledValueFromDscComponent": Pcd.PcdFiledValueFromDscComponent
+            }
+
+        # Store the CC Flags
+        StructuredPcdsData["CC_FLAGS"] = CC_FLAGS
+        #
+        # If the output path doesn't exists then create it
+        #
+        if not os.path.exists(self.OutputPath):
+            os.makedirs(self.OutputPath)
+
+        StructuredPcdsDataPath = os.path.join(self.OutputPath, self._Arch, StructuredPcdsDataName)
+        PcdRecordOutputValueFile = os.path.join(self.OutputPath, self._Arch, 'Output.txt')
+
+        if not os.path.exists(os.path.dirname(StructuredPcdsDataPath)):
+            os.makedirs(os.path.dirname(StructuredPcdsDataPath))
+        #
+        # Check if the StructuredPcdsData.json exists or not
+        # if exits then it might be a incremental build then check if the StructuredPcdsData has been changed or not.
+        # if changed then proceed further, if not changed then return the stored data from earlier build
+        #
+        if os.path.isfile(StructuredPcdsDataPath):
+            with open(StructuredPcdsDataPath, 'r') as file:
+                StoredStructuredPcdsData = json.load(file)
+                # OBJECTS will have the modified time, which needs to be checked later
+                StoredStructuredPcdObjectPaths = StoredStructuredPcdsData.pop("OBJECTS", {})
+
+                if StructuredPcdsData == StoredStructuredPcdsData:
+                    SkipPcdValueInit = True
+                    for filename, file_mtime in StoredStructuredPcdObjectPaths.items():
+                        f_mtime = os.path.getmtime(filename)
+                        #
+                        # check if the include_file are modified or not,
+                        # if modified then generate the PcdValueInit
+                        #
+                        if f_mtime != file_mtime:
+                            SkipPcdValueInit = False
+                            break
+
+        if SkipPcdValueInit:
+            return self.GetStructurePcdSet(PcdRecordOutputValueFile)
 
         InitByteValue = ""
         CApp = PcdMainCHeader
@@ -2832,19 +2932,18 @@ class DscBuildData(PlatformBuildClassObject):
 
         CApp = CApp + PcdMainCEntry + '\n'
 
-        if not os.path.exists(self.OutputPath):
-            os.makedirs(self.OutputPath)
         CAppBaseFileName = os.path.join(self.OutputPath, PcdValueInitName)
         SaveFileOnChange(CAppBaseFileName + '.c', CApp, False)
 
         # start generating makefile
         MakeApp = PcdMakefileHeader
-        if sys.platform == "win32":
-            MakeApp = MakeApp + 'APPFILE = %s\%s.exe\n' % (self.OutputPath, PcdValueInitName) + 'APPNAME = %s\n' % (PcdValueInitName) + 'OBJECTS = %s\%s.obj %s.obj\n' % (self.OutputPath, PcdValueInitName, os.path.join(self.OutputPath, PcdValueCommonName)) + 'INC = '
+        if sys.platform == "win32" and not self._MingwBaseToolsBuild:
+            MakeApp = MakeApp + 'APPFILE = %s\\%s.exe\n' % (self.OutputPath, PcdValueInitName) + 'APPNAME = %s\n' % (PcdValueInitName) + 'OBJECTS = %s\\%s.obj %s.obj\n' % (self.OutputPath, PcdValueInitName, os.path.join(self.OutputPath, PcdValueCommonName)) + 'INC = '
         else:
+            AppSuffix = '.exe' if sys.platform == "win32" else ''
             MakeApp = MakeApp + PcdGccMakefile
-            MakeApp = MakeApp + 'APPFILE = %s/%s\n' % (self.OutputPath, PcdValueInitName) + 'APPNAME = %s\n' % (PcdValueInitName) + 'OBJECTS = %s/%s.o %s.o\n' % (self.OutputPath, PcdValueInitName, os.path.join(self.OutputPath, PcdValueCommonName)) + \
-                      'include $(MAKEROOT)/Makefiles/app.makefile\n' + 'TOOL_INCLUDE +='
+            MakeApp = MakeApp + 'APPFILE = %s%s%s%s\n' % (self.OutputPath, os.sep, PcdValueInitName, AppSuffix) + 'APPNAME = %s\n' % (PcdValueInitName) + 'OBJECTS = %s/%s.o %s.o\n' % (self.OutputPath, PcdValueInitName, os.path.join(self.OutputPath, PcdValueCommonName)) + \
+                    'include $(MAKEROOT)/Makefiles/app.makefile\n' + 'TOOL_INCLUDE +='
 
         IncSearchList = []
         PlatformInc = OrderedDict()
@@ -2890,49 +2989,14 @@ class DscBuildData(PlatformBuildClassObject):
                         IncSearchList.append(inc)
         MakeApp = MakeApp + '\n'
 
-        CC_FLAGS = LinuxCFLAGS
-        if sys.platform == "win32":
-            CC_FLAGS = WindowsCFLAGS
-        BuildOptions = OrderedDict()
-        for Options in self.BuildOptions:
-            if Options[2] != EDKII_NAME:
-                continue
-            Family = Options[0]
-            if Family and Family != self.ToolChainFamily:
-                continue
-            Target, Tag, Arch, Tool, Attr = Options[1].split("_")
-            if Tool != 'CC':
-                continue
-            if Attr != "FLAGS":
-                continue
-            if Target == TAB_STAR or Target == self._Target:
-                if Tag == TAB_STAR or Tag == self._Toolchain:
-                    if 'COMMON' not in BuildOptions:
-                        BuildOptions['COMMON'] = set()
-                    if Arch == TAB_STAR:
-                        BuildOptions['COMMON']|= self.ParseCCFlags(self.BuildOptions[Options])
-                    if Arch in self.SupArchList:
-                        if Arch not in BuildOptions:
-                            BuildOptions[Arch] = set()
-                        BuildOptions[Arch] |= self.ParseCCFlags(self.BuildOptions[Options])
-
-        if BuildOptions:
-            ArchBuildOptions = {arch:flags for arch,flags in BuildOptions.items() if arch != 'COMMON'}
-            if len(ArchBuildOptions.keys()) == 1:
-                BuildOptions['COMMON'] |= (list(ArchBuildOptions.values())[0])
-            elif len(ArchBuildOptions.keys()) > 1:
-                CommonBuildOptions = reduce(lambda x,y: x&y, ArchBuildOptions.values())
-                BuildOptions['COMMON'] |= CommonBuildOptions
-            ValueList = [item for item in BuildOptions['COMMON'] if item.startswith((r"/U","-U"))]
-            ValueList.extend([item for item in BuildOptions['COMMON'] if item.startswith((r"/D", "-D"))])
-            CC_FLAGS += " ".join(ValueList)
         MakeApp += CC_FLAGS
 
-        if sys.platform == "win32":
+        if sys.platform == "win32" and not self._MingwBaseToolsBuild:
             MakeApp = MakeApp + PcdMakefileEnd
             MakeApp = MakeApp + AppTarget % ("""\tcopy $(APPLICATION) $(APPFILE) /y """)
         else:
-            MakeApp = MakeApp + AppTarget % ("""\tcp -p $(APPLICATION) $(APPFILE) """)
+            AppSuffix = '.exe' if sys.platform == "win32" else ''
+            MakeApp = MakeApp + AppTarget % ("""\t$(CP) $(APPLICATION)%s $(APPFILE)"""%(AppSuffix))
         MakeApp = MakeApp + '\n'
         IncludeFileFullPaths = []
         for includefile in IncludeFiles:
@@ -2946,11 +3010,13 @@ class DscBuildData(PlatformBuildClassObject):
         SearchPathList.append(os.path.normpath(mws.join(GlobalData.gGlobalDefines["EDK_TOOLS_PATH"], "BaseTools/Source/C/Common")))
         SearchPathList.extend(str(item) for item in IncSearchList)
         IncFileList = GetDependencyList(IncludeFileFullPaths, SearchPathList)
+        StructuredPcdsData["OBJECTS"] = {}
         for include_file in IncFileList:
+            StructuredPcdsData["OBJECTS"][include_file] = os.path.getmtime(include_file)
             MakeApp += "$(OBJECTS) : %s\n" % include_file
         if sys.platform == "win32":
-            PcdValueCommonPath = os.path.normpath(mws.join(GlobalData.gGlobalDefines["EDK_TOOLS_PATH"], "Source\C\Common\PcdValueCommon.c"))
-            MakeApp = MakeApp + '%s\PcdValueCommon.c : %s\n' % (self.OutputPath, PcdValueCommonPath)
+            PcdValueCommonPath = os.path.normpath(mws.join(GlobalData.gGlobalDefines["EDK_TOOLS_PATH"], "Source\\C\\Common\\PcdValueCommon.c"))
+            MakeApp = MakeApp + '%s\\PcdValueCommon.c : %s\n' % (self.OutputPath, PcdValueCommonPath)
             MakeApp = MakeApp + '\tcopy /y %s $@\n' % (PcdValueCommonPath)
         else:
             PcdValueCommonPath = os.path.normpath(mws.join(GlobalData.gGlobalDefines["EDK_TOOLS_PATH"], "Source/C/Common/PcdValueCommon.c"))
@@ -2973,12 +3039,21 @@ class DscBuildData(PlatformBuildClassObject):
 
         #start building the structure pcd value tool
         Messages = ''
-        if sys.platform == "win32":
+        if sys.platform == "win32" and not self._MingwBaseToolsBuild:
             MakeCommand = 'nmake -f %s' % (MakeFileName)
             returncode, StdOut, StdErr = DscBuildData.ExecuteCommand (MakeCommand)
             Messages = StdOut
         else:
-            MakeCommand = 'make -f %s' % (MakeFileName)
+            if sys.platform == "win32" and self._MingwBaseToolsBuild:
+                if shutil.which('mingw32-make.exe') is not None:
+                    MakeCommand = 'mingw32-make -f %s' % (MakeFileName)
+                else:
+                    if self._Toolchain in ('CLANGPDB', 'CLANGDWARF') and 'CLANG_HOST_BIN' in os.environ:
+                        MakeCommand = '%smake -f %s' % (os.environ.get('CLANG_HOST_BIN'), MakeFileName)
+                    else:
+                        MakeCommand = 'make -f %s' % (MakeFileName)
+            else:
+                MakeCommand = 'make -f %s' % (MakeFileName)
             returncode, StdOut, StdErr = DscBuildData.ExecuteCommand (MakeCommand)
             Messages = StdErr
 
@@ -3042,17 +3117,18 @@ class DscBuildData(PlatformBuildClassObject):
             if returncode != 0:
                 EdkLogger.warn('Build', COMMAND_FAILURE, 'Can not collect output from command: %s\n%s\n%s\n' % (Command, StdOut, StdErr))
 
-        #start update structure pcd final value
-        File = open (OutputValueFile, 'r')
-        FileBuffer = File.readlines()
-        File.close()
+        #
+        # In 1st build create the StructuredPcdsData.json
+        # update the record as PCD Input has been changed if its incremental build
+        #
+        with open(StructuredPcdsDataPath, 'w') as file:
+            json.dump(StructuredPcdsData, file, indent=2)
 
-        StructurePcdSet = []
-        for Pcd in FileBuffer:
-            PcdValue = Pcd.split ('|')
-            PcdInfo = PcdValue[0].split ('.')
-            StructurePcdSet.append((PcdInfo[0], PcdInfo[1], PcdInfo[2], PcdInfo[3], PcdValue[2].strip()))
-        return StructurePcdSet
+        # Copy update output file for each Arch
+        shutil.copyfile(OutputValueFile, PcdRecordOutputValueFile)
+
+        #start update structure pcd final value
+        return self.GetStructurePcdSet(OutputValueFile)
 
     @staticmethod
     def NeedUpdateOutput(OutputFile, ValueCFile, StructureInput):
@@ -3518,20 +3594,6 @@ class DscBuildData(PlatformBuildClassObject):
         list(map(self.FilterSkuSettings, Pcds.values()))
         return Pcds
 
-    ## Add external modules
-    #
-    #   The external modules are mostly those listed in FDF file, which don't
-    # need "build".
-    #
-    #   @param  FilePath    The path of module description file
-    #
-    def AddModule(self, FilePath):
-        FilePath = NormPath(FilePath)
-        if FilePath not in self.Modules:
-            Module = ModuleBuildClassObject()
-            Module.MetaFile = FilePath
-            self.Modules.append(Module)
-
     @property
     def ToolChainFamily(self):
         self._ToolChainFamily = TAB_COMPILER_MSFT
@@ -3552,20 +3614,6 @@ class DscBuildData(PlatformBuildClassObject):
                 else:
                     self._ToolChainFamily = ToolDefinition[TAB_TOD_DEFINES_FAMILY][self._Toolchain]
         return self._ToolChainFamily
-
-    ## Add external PCDs
-    #
-    #   The external PCDs are mostly those listed in FDF file to specify address
-    # or offset information.
-    #
-    #   @param  Name    Name of the PCD
-    #   @param  Guid    Token space guid of the PCD
-    #   @param  Value   Value of the PCD
-    #
-    def AddPcd(self, Name, Guid, Value):
-        if (Name, Guid) not in self.Pcds:
-            self.Pcds[Name, Guid] = PcdClassObject(Name, Guid, '', '', '', '', '', {}, False, None)
-        self.Pcds[Name, Guid].DefaultValue = Value
 
     @property
     def DecPcds(self):

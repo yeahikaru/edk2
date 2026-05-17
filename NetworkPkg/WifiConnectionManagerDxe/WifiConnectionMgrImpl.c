@@ -572,15 +572,28 @@ WifiMgrConfigEap (
   // Set Identity to Eap peer, Mandatory field for PEAP and TTLS
   //
   if (StrLen (Profile->EapIdentity) > 0) {
-    IdentitySize = sizeof (CHAR8) * (StrLen (Profile->EapIdentity) + 1);
-    Identity     = AllocateZeroPool (IdentitySize);
+    Status = gBS->LocateProtocol (&gEdkiiWiFiProfileSyncProtocolGuid, NULL, (VOID **)&WiFiProfileSyncProtocol);
+    if (!EFI_ERROR (Status)) {
+      //
+      // Max size of EapIdentity ::= sizeof (CHAR16) * sizeof (Profile->EapIdentity) ::= 2 * EAP_IDENTITY_SIZE
+      //
+      IdentitySize = sizeof (CHAR8) * (AsciiStrnLenS ((CHAR8 *)Profile->EapIdentity, sizeof (CHAR16) * sizeof (Profile->EapIdentity)) + 1);
+    } else {
+      IdentitySize = sizeof (CHAR8) * (StrLen (Profile->EapIdentity) + 1);
+    }
+
+    Identity = AllocateZeroPool (IdentitySize);
     if (Identity == NULL) {
       return EFI_OUT_OF_RESOURCES;
     }
 
-    Status = gBS->LocateProtocol (&gEdkiiWiFiProfileSyncProtocolGuid, NULL, (VOID **)&WiFiProfileSyncProtocol);
     if (!EFI_ERROR (Status)) {
-      CopyMem (Identity, &Profile->EapIdentity, IdentitySize);
+      //
+      // The size of Identity from Username may equal
+      // to the max size of EapIdentity(EAP_IDENTITY_SIZE*2=128 bytes),
+      // so here only valid characters except NULL characters are copied.
+      //
+      CopyMem (Identity, &Profile->EapIdentity, IdentitySize - 1);
     } else {
       UnicodeStrToAsciiStrS (Profile->EapIdentity, Identity, IdentitySize);
     }
@@ -1164,6 +1177,7 @@ WifiMgrOnConnectFinished (
   }
 
   ConfigToken->Nic->ConnectState = WifiMgrConnectedToAp;
+  gBS->SetTimer (ConfigToken->Nic->TickTimer, TimerCancel, 0);
   WifiMgrUpdateConnectMessage (ConfigToken->Nic, TRUE, NULL);
 
 Exit:
@@ -1476,6 +1490,12 @@ WifiMgrOnTimerTick (
   }
 
   Nic = (WIFI_MGR_DEVICE_DATA *)Context;
+  if ((Nic->ConnectPendingNetwork == NULL) && !Nic->HasDisconnectPendingNetwork) {
+    DEBUG ((DEBUG_VERBOSE, "[WiFi Connection Manager] No profile for connection, no scan triggered!\n"));
+    gBS->SetTimer (Nic->TickTimer, TimerCancel, 0);
+    return;
+  }
+
   NET_CHECK_SIGNATURE (Nic, WIFI_MGR_DEVICE_DATA_SIGNATURE);
 
   Status = WifiMgrGetLinkState (Nic, &LinkState);
@@ -1493,7 +1513,10 @@ WifiMgrOnTimerTick (
   }
 
   Nic->ScanTickTime++;
-  if (((Nic->ScanTickTime > WIFI_SCAN_FREQUENCY) || Nic->OneTimeScanRequest) &&
+  if ((((Nic->ScanTickTime > WIFI_SCAN_FREQUENCY) &&
+        ((Nic->ConnectState != WifiMgrConnectedToAp) &&
+         (Nic->ConnectState != WifiMgrConnectingToAp))) ||
+       Nic->OneTimeScanRequest) &&
       (Nic->ScanState == WifiMgrScanFinished))
   {
     Nic->OneTimeScanRequest = FALSE;

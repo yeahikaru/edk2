@@ -1,6 +1,6 @@
 /** @file
 
-  Copyright (c) 2014 - 2022, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2014 - 2025, Intel Corporation. All rights reserved.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -15,21 +15,14 @@
 
 #pragma pack(1)
 
-//
-//   API Parameter                +0x34
-//   API return address           +0x30
-//
-//   push    FspInfoHeader        +0x2C
-//   pushfd                       +0x28
-//   cli
-//   pushad                       +0x24
-//   sub     esp, 8               +0x00
-//   sidt    fword ptr [esp]
-//
 typedef struct {
   UINT16    IdtrLimit;
   UINT32    IdtrBase;
   UINT16    Reserved;
+  UINT32    Cr0;
+  UINT32    Cr3;
+  UINT32    Cr4;
+  UINT32    Efer;           // lower 32-bit of EFER since only NXE bit (BIT11) need to be restored.
   UINT32    Registers[8];   // General Purpose Registers: Edi, Esi, Ebp, Esp, Ebx, Edx, Ecx and Eax
   UINT16    Flags[2];
   UINT32    FspInfoHeader;
@@ -37,20 +30,16 @@ typedef struct {
   UINT32    ApiParam[2];
 } CONTEXT_STACK;
 
-//
-//   API return address           +0xB8
-//   Reserved                     +0xB0
-//   push    API Parameter2       +0xA8
-//   push    API Parameter1       +0xA0
-//   push    FspInfoHeader        +0x98
-//   pushfq                       +0x90
-//   cli
-//   PUSHA_64                     +0x10
-//   sub     rsp, 16              +0x00
-//   sidt    [rsp]
-//
 typedef struct {
-  UINT64    Idtr[2];        // IDTR Limit - bit0:bi15, IDTR Base - bit16:bit79
+  UINT64    Idtr[2];        // IDTR Limit - bit0:bit15, IDTR Base - bit16:bit79
+  UINT64    Gdtr[2];        // GDTR Limit - bit0:bit15, GDTR Base - bit16:bit79
+  UINT64    Segment[6];     // Segment Registers: CS, DS, ES, FS, GS, SS
+  UINT64    FsBase;
+  UINT64    GsBase;
+  UINT64    Cr0;
+  UINT64    Cr3;
+  UINT64    Cr4;
+  UINT64    Efer;
   UINT64    Registers[16];  // General Purpose Registers: RDI, RSI, RBP, RSP, RBX, RDX, RCX, RAX, and R15 to R8
   UINT32    Flags[2];
   UINT64    FspInfoHeader;
@@ -89,10 +78,10 @@ GetFspGlobalDataPointer (
   VOID
   )
 {
-  FSP_GLOBAL_DATA  *FspData;
+  UINT32  FspDataAddress;
 
-  FspData = *(FSP_GLOBAL_DATA  **)(UINTN)PcdGet32 (PcdGlobalDataPointerAddress);
-  return FspData;
+  FspDataAddress = *(UINT32 *)(UINTN)PcdGet32 (PcdGlobalDataPointerAddress);
+  return (FSP_GLOBAL_DATA *)(UINTN)FspDataAddress;
 }
 
 /**
@@ -180,37 +169,6 @@ SetFspApiReturnStatus (
 
   FspData                                                              = GetFspGlobalDataPointer ();
   *(UINTN *)(FspData->CoreStack + CONTEXT_STACK_OFFSET (Registers[7])) = ReturnStatus;
-}
-
-/**
-  This function sets the context switching stack to a new stack frame.
-
-  @param[in] NewStackTop       New core stack to be set.
-
-**/
-VOID
-EFIAPI
-SetFspCoreStackPointer (
-  IN VOID  *NewStackTop
-  )
-{
-  FSP_GLOBAL_DATA  *FspData;
-  UINTN            *OldStack;
-  UINTN            *NewStack;
-  UINT32           StackContextLen;
-
-  FspData         = GetFspGlobalDataPointer ();
-  StackContextLen = sizeof (CONTEXT_STACK) / sizeof (UINTN);
-
-  //
-  // Reserve space for the ContinuationFunc two parameters
-  //
-  OldStack           = (UINTN *)FspData->CoreStack;
-  NewStack           = (UINTN *)NewStackTop - StackContextLen - 2;
-  FspData->CoreStack = (UINTN)NewStack;
-  while (StackContextLen-- != 0) {
-    *NewStack++ = *OldStack++;
-  }
 }
 
 /**
@@ -373,11 +331,53 @@ GetFspSiliconInitUpdDataPointer (
 }
 
 /**
+  This function sets the FspSmmInit UPD data pointer.
+
+  @param[in] SmmInitUpdPtr   FspSmmInit UPD data pointer.
+**/
+VOID
+EFIAPI
+SetFspSmmInitUpdDataPointer (
+  IN VOID  *SmmInitUpdPtr
+  )
+{
+  FSP_GLOBAL_DATA  *FspData;
+
+  //
+  // Get the FSP Global Data Pointer
+  //
+  FspData = GetFspGlobalDataPointer ();
+
+  //
+  // Set the FspSmmInit UPD data pointer.
+  //
+  FspData->SmmInitUpdPtr = SmmInitUpdPtr;
+}
+
+/**
+  This function gets the FspSmmInit UPD data pointer.
+
+  @return FspSmmInit UPD data pointer.
+**/
+VOID *
+EFIAPI
+GetFspSmmInitUpdDataPointer (
+  VOID
+  )
+{
+  FSP_GLOBAL_DATA  *FspData;
+
+  FspData = GetFspGlobalDataPointer ();
+  return FspData->SmmInitUpdPtr;
+}
+
+/**
   Set FSP measurement point timestamp.
 
   @param[in] Id       Measurement point ID.
 
-  @return performance timestamp.
+  @return performance timestamp if current PerfIdx is valid,
+          else return 0 as invalid performance timestamp
 **/
 UINT64
 EFIAPI
@@ -395,9 +395,10 @@ SetFspMeasurePoint (
   if (FspData->PerfIdx < sizeof (FspData->PerfData) / sizeof (FspData->PerfData[0])) {
     FspData->PerfData[FspData->PerfIdx]                  = AsmReadTsc ();
     ((UINT8 *)(&FspData->PerfData[FspData->PerfIdx]))[7] = Id;
+    return FspData->PerfData[(FspData->PerfIdx)++];
   }
 
-  return FspData->PerfData[(FspData->PerfIdx)++];
+  return 0;
 }
 
 /**
@@ -522,34 +523,4 @@ SetPhaseStatusCode (
 
   FspData             = GetFspGlobalDataPointer ();
   FspData->StatusCode = StatusCode;
-}
-
-/**
-  This function updates the return status of the FSP API with requested reset type and returns to Boot Loader.
-
-  @param[in] FspResetType     Reset type that needs to returned as API return status
-
-**/
-VOID
-EFIAPI
-FspApiReturnStatusReset (
-  IN EFI_STATUS  FspResetType
-  )
-{
-  volatile BOOLEAN  LoopUntilReset;
-
-  LoopUntilReset = TRUE;
-  DEBUG ((DEBUG_INFO, "FSP returning control to Bootloader with reset required return status %x\n", FspResetType));
-  if (GetFspGlobalDataPointer ()->FspMode == FSP_IN_API_MODE) {
-    ///
-    /// Below code is not an infinite loop.The control will go back to API calling function in BootLoader each time BootLoader
-    /// calls the FSP API without honoring the reset request by FSP
-    ///
-    do {
-      SetFspApiReturnStatus (FspResetType);
-      Pei2LoaderSwitchStack ();
-      DEBUG ((DEBUG_ERROR, "!!!ERROR: FSP has requested BootLoader for reset. But BootLoader has not honored the reset\n"));
-      DEBUG ((DEBUG_ERROR, "!!!ERROR: Please add support in BootLoader to honor the reset request from FSP\n"));
-    } while (LoopUntilReset);
-  }
 }

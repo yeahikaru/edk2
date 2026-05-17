@@ -7,8 +7,7 @@
 
 **/
 
-#ifndef RISCV_ENCODING_H_
-#define RISCV_ENCODING_H_
+#pragma once
 
 #define MSTATUS_SIE         0x00000002UL
 #define MSTATUS_MIE         0x00000008UL
@@ -20,6 +19,7 @@
 #define MSTATUS_SPP         (1UL << MSTATUS_SPP_SHIFT)
 #define MSTATUS_MPP_SHIFT   11
 #define MSTATUS_MPP         (3UL << MSTATUS_MPP_SHIFT)
+#define MSTATUS_FS          0x00006000UL
 
 #define SSTATUS_SIE         MSTATUS_SIE
 #define SSTATUS_SPIE_SHIFT  MSTATUS_SPIE_SHIFT
@@ -58,9 +58,10 @@
 #define PRV_S  1UL
 #define PRV_M  3UL
 
-#define SATP64_MODE  0xF000000000000000ULL
-#define SATP64_ASID  0x0FFFF00000000000ULL
-#define SATP64_PPN   0x00000FFFFFFFFFFFULL
+#define SATP64_MODE        0xF000000000000000ULL
+#define SATP64_MODE_SHIFT  60
+#define SATP64_ASID        0x0FFFF00000000000ULL
+#define SATP64_PPN         0x00000FFFFFFFFFFFULL
 
 #define SATP_MODE_OFF   0UL
 #define SATP_MODE_SV32  1UL
@@ -74,6 +75,9 @@
 /* User Counters/Timers */
 #define CSR_CYCLE  0xc00
 #define CSR_TIME   0xc01
+
+/* Floating-Point */
+#define CSR_FCSR  0x003
 
 /* Supervisor Trap Setup */
 #define CSR_SSTATUS  0x100
@@ -94,6 +98,9 @@
 
 /* Supervisor Protection and Translation */
 #define CSR_SATP  0x180
+
+/* Sstc extension */
+#define CSR_STIMECMP  0x14D
 
 /* Trap/Exception Causes */
 #define CAUSE_MISALIGNED_FETCH          0x0
@@ -116,4 +123,12 @@
 #define CAUSE_VIRTUAL_INST_FAULT        0x16
 #define CAUSE_STORE_GUEST_PAGE_FAULT    0x17
 
-#endif
+/* Sstc extension */
+#define CSR_SEED  0x15
+
+#define SEED_OPST_MASK     0xc0000000
+#define SEED_OPST_BIST     0x00000000
+#define SEED_OPST_WAIT     0x40000000
+#define SEED_OPST_ES16     0x80000000
+#define SEED_OPST_DEAD     0xc0000000
+#define SEED_ENTROPY_MASK  0xffff

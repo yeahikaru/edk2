@@ -6,6 +6,9 @@
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 ##
 {
+    "PrEval": {
+        "DscPath": "SourceLevelDebugPkg.dsc",
+    },
     ## options defined .pytool/Plugin/LicenseCheck
     "LicenseCheck": {
         "IgnoreFiles": []
@@ -109,7 +112,8 @@
           "stosq",
           "ttach",
           "urb's",
-          "xhc's"
+          "xhc's",
+          "usbsts"
         ],
         "IgnoreStandardPaths": [],   # Standard Plugin defined paths that should be ignore
         "AdditionalIncludePaths": [] # Additional paths to spell check (wildcards supported)

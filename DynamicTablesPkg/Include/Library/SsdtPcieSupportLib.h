@@ -6,8 +6,7 @@
   SPDX-License-Identifier: BSD-2-Clause-Patent
 **/
 
-#ifndef SSDT_PCIE_SUPPORT_LIB_H_
-#define SSDT_PCIE_SUPPORT_LIB_H_
+#pragma once
 
 #pragma pack(1)
 
@@ -43,8 +42,8 @@ typedef struct MappingTable {
 EFI_STATUS
 EFIAPI
 AddOscMethod (
-  IN      CONST CM_ARM_PCI_CONFIG_SPACE_INFO  *PciInfo,
-  IN  OUT   AML_OBJECT_NODE_HANDLE            PciNode
+  IN      CONST CM_ARCH_COMMON_PCI_CONFIG_SPACE_INFO  *PciInfo,
+  IN  OUT   AML_OBJECT_NODE_HANDLE                    PciNode
   );
 
 /** Generate Pci slots devices.
@@ -66,10 +65,8 @@ AddOscMethod (
 EFI_STATUS
 EFIAPI
 GeneratePciSlots (
-  IN      CONST CM_ARM_PCI_CONFIG_SPACE_INFO  *PciInfo,
-  IN      CONST MAPPING_TABLE                 *MappingTable,
-  IN            UINT32                        Uid,
-  IN  OUT       AML_OBJECT_NODE_HANDLE        PciNode
+  IN      CONST CM_ARCH_COMMON_PCI_CONFIG_SPACE_INFO  *PciInfo,
+  IN      CONST MAPPING_TABLE                         *MappingTable,
+  IN            UINT32                                Uid,
+  IN  OUT       AML_OBJECT_NODE_HANDLE                PciNode
   );
-
-#endif // SSDT_PCIE_SUPPORT_LIB_H_

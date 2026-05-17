@@ -103,7 +103,9 @@ DispatchCpu (
 
   ArmCallSmc (&Args);
 
-  if (Args.Arg0 != ARM_SMC_PSCI_RET_SUCCESS) {
+  if (Args.Arg0 == ARM_SMC_PSCI_RET_ALREADY_ON) {
+    Status = EFI_NOT_READY;
+  } else if (Args.Arg0 != ARM_SMC_PSCI_RET_SUCCESS) {
     DEBUG ((DEBUG_ERROR, "PSCI_CPU_ON call failed: %d\n", Args.Arg0));
     Status = EFI_DEVICE_ERROR;
   }
@@ -338,7 +340,7 @@ GetProcessorInfo (
 
   CopyMem (
     ProcessorInfoBuffer,
-    &mCpuMpData.CpuData[ProcessorIndex],
+    &mCpuMpData.CpuData[ProcessorIndex].Info,
     sizeof (EFI_PROCESSOR_INFORMATION)
     );
   return EFI_SUCCESS;
@@ -885,7 +887,9 @@ EnableDisableAP (
     return EFI_INVALID_PARAMETER;
   }
 
-  if (GetApState (CpuData) != CpuStateIdle) {
+  if ((GetApState (CpuData) != CpuStateIdle) &&
+      (GetApState (CpuData) != CpuStateFinished))
+  {
     return EFI_UNSUPPORTED;
   }
 
@@ -1329,7 +1333,7 @@ MpServicesInitialize (
   ASSERT (gApStacksBase != NULL);
 
   for (Index = 0; Index < mCpuMpData.NumberOfProcessors; Index++) {
-    if (GET_MPIDR_AFFINITY_BITS (ArmReadMpidr ()) == CoreInfo[Index].Mpidr) {
+    if (GET_MPIDR_AFFINITY_BITS (ArmReadMpidr ()) == GET_MPIDR_AFFINITY_BITS (CoreInfo[Index].Mpidr)) {
       IsBsp = TRUE;
     } else {
       IsBsp = FALSE;

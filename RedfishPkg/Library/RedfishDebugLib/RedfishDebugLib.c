@@ -1,26 +1,106 @@
 /** @file
   Redfish debug library to debug Redfish application.
 
-  Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.<BR>
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
 #include <Uefi.h>
-
+#include <RedfishCommon.h>
 #include <Library/BaseLib.h>
 #include <Library/DebugLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/RedfishDebugLib.h>
+#include <Library/RedfishHttpLib.h>
 #include <Library/UefiLib.h>
 
-#ifndef IS_EMPTY_STRING
-#define IS_EMPTY_STRING(a)  ((a) == NULL || (a)[0] == '\0')
-#endif
+#define REDFISH_JSON_STRING_LENGTH          200
+#define REDFISH_JSON_OUTPUT_FORMAT          (EDKII_JSON_COMPACT | EDKII_JSON_INDENT(2))
+#define REDFISH_PRINT_BUFFER_BYTES_PER_ROW  16
 
-#define REDFISH_JSON_STRING_LENGTH  200
-#define REDFISH_JSON_OUTPUT_FORMAT  (EDKII_JSON_COMPACT | EDKII_JSON_INDENT(2))
+/**
+  Determine whether the Redfish debug category is enabled in
+  gEfiRedfishPkgTokenSpaceGuid.PcdRedfishDebugCategory.
+
+  @param[in]  RedfishDebugCategory  Redfish debug category.
+
+  @retval     TRUE   This debug category is enabled.
+  @retval     FALSE  This debug category is disabled..
+**/
+BOOLEAN
+DebugRedfishComponentEnabled (
+  IN  UINT64  RedfishDebugCategory
+  )
+{
+  UINT64  DebugCategory;
+
+  DebugCategory = FixedPcdGet64 (PcdRedfishDebugCategory);
+  return ((DebugCategory & RedfishDebugCategory) != 0);
+}
+
+/**
+  Debug print the value of RedfishValue.
+
+  @param[in]  ErrorLevel     DEBUG macro error level.
+  @param[in]  RedfishValue   The statement value to print.
+
+  @retval     EFI_SUCCESS            RedfishValue is printed.
+  @retval     EFI_INVALID_PARAMETER  RedfishValue is NULL.
+**/
+EFI_STATUS
+DumpRedfishValue (
+  IN UINTN                ErrorLevel,
+  IN EDKII_REDFISH_VALUE  *RedfishValue
+  )
+{
+  UINTN  Index;
+
+  if (RedfishValue == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  DEBUG ((ErrorLevel, "Type:       0x%x\n", RedfishValue->Type));
+  DEBUG ((ErrorLevel, "ArrayCount: 0x%x\n", RedfishValue->ArrayCount));
+
+  switch (RedfishValue->Type) {
+    case RedfishValueTypeInteger:
+      DEBUG ((ErrorLevel, "Value:      0x%x\n", RedfishValue->Value.Integer));
+      break;
+    case RedfishValueTypeBoolean:
+      DEBUG ((ErrorLevel, "Value:      %a\n", (RedfishValue->Value.Boolean ? "true" : "false")));
+      break;
+    case RedfishValueTypeString:
+      DEBUG ((ErrorLevel, "Value:      %a\n", RedfishValue->Value.Buffer));
+      break;
+    case RedfishValueTypeStringArray:
+      for (Index = 0; Index < RedfishValue->ArrayCount; Index++) {
+        DEBUG ((ErrorLevel, "Value[%d]:      %a\n", Index, RedfishValue->Value.StringArray[Index]));
+      }
+
+      break;
+    case RedfishValueTypeIntegerArray:
+      for (Index = 0; Index < RedfishValue->ArrayCount; Index++) {
+        DEBUG ((ErrorLevel, "Value[%d]:      0x%x\n", Index, RedfishValue->Value.IntegerArray[Index]));
+      }
+
+      break;
+    case RedfishValueTypeBooleanArray:
+      for (Index = 0; Index < RedfishValue->ArrayCount; Index++) {
+        DEBUG ((ErrorLevel, "Value[%d]:      %a\n", Index, (RedfishValue->Value.BooleanArray[Index] ? "true" : "false")));
+      }
+
+      break;
+    case RedfishValueTypeUnknown:
+    case RedfishValueTypeMax:
+    default:
+      break;
+  }
+
+  return EFI_SUCCESS;
+}
 
 /**
 
@@ -224,6 +304,70 @@ DumpRedfishResponse (
   if (Response->Payload != NULL) {
     DumpRedfishPayload (ErrorLevel, Response->Payload);
   }
+
+  return EFI_SUCCESS;
+}
+
+/**
+
+  This function dump the IPv4 address in given error level.
+
+  @param[in]  ErrorLevel  DEBUG macro error level
+  @param[in]  Ipv4Address IPv4 address to dump
+
+  @retval     EFI_SUCCESS         IPv4 address string is printed.
+  @retval     Others              Errors occur.
+
+**/
+EFI_STATUS
+DumpIpv4Address (
+  IN UINTN             ErrorLevel,
+  IN EFI_IPv4_ADDRESS  *Ipv4Address
+  )
+{
+  if (Ipv4Address == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  DEBUG ((ErrorLevel, "%d.%d.%d.%d\n", Ipv4Address->Addr[0], Ipv4Address->Addr[1], Ipv4Address->Addr[2], Ipv4Address->Addr[3]));
+
+  return EFI_SUCCESS;
+}
+
+/**
+  Debug output raw data buffer.
+
+  @param[in]    ErrorLevel  DEBUG macro error level
+  @param[in]    Buffer      Debug output data buffer.
+  @param[in]    BufferSize  The size of Buffer in byte.
+
+  @retval EFI_SUCCESS             Debug dump finished.
+  @retval EFI_INVALID_PARAMETER   Buffer is NULL.
+
+**/
+EFI_STATUS
+DumpBuffer (
+  IN  UINTN  ErrorLevel,
+  IN  UINT8  *Buffer,
+  IN  UINTN  BufferSize
+  )
+{
+  UINTN  Index;
+
+  if (Buffer == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  DEBUG ((ErrorLevel, "Address: 0x%p size: %d\n", Buffer, BufferSize));
+  for (Index = 0; Index < BufferSize; Index++) {
+    if (Index % REDFISH_PRINT_BUFFER_BYTES_PER_ROW == 0) {
+      DEBUG ((ErrorLevel, "\n%04X: ", Index));
+    }
+
+    DEBUG ((ErrorLevel, "%02X ", Buffer[Index]));
+  }
+
+  DEBUG ((ErrorLevel, "\n"));
 
   return EFI_SUCCESS;
 }

@@ -19,6 +19,7 @@ from .GenFdsGlobalVariable import GenFdsGlobalVariable
 from .Ffs import SectionSuffix,FdfFvFileTypeToFileType
 import subprocess
 import sys
+from pathlib import Path
 from . import Section
 from . import RuleSimpleFile
 from . import RuleComplexFile
@@ -64,8 +65,6 @@ class FfsInfStatement(FfsInfStatementClassObject):
         self.PiSpecVersion = '0x00000000'
         self.InfModule = None
         self.FinalTargetSuffixMap = {}
-        self.CurrentLineNum = None
-        self.CurrentLineContent = None
         self.FileName = None
         self.InfFileName = None
         self.OverrideGuid = None
@@ -92,7 +91,7 @@ class FfsInfStatement(FfsInfStatementClassObject):
 
                 if ModuleType != SUP_MODULE_USER_DEFINED and ModuleType != SUP_MODULE_HOST_APPLICATION:
                     for LibraryClass in PlatformDataBase.LibraryClasses.GetKeys():
-                        if LibraryClass.startswith("NULL") and PlatformDataBase.LibraryClasses[LibraryClass, ModuleType]:
+                        if LibraryClass.startswith("NULL") and LibraryClass[4:].isdigit() and PlatformDataBase.LibraryClasses[LibraryClass, ModuleType]:
                             self.InfModule.LibraryClasses[LibraryClass] = PlatformDataBase.LibraryClasses[LibraryClass, ModuleType]
 
                 StrModule = str(self.InfModule)
@@ -100,7 +99,7 @@ class FfsInfStatement(FfsInfStatementClassObject):
                 if StrModule in PlatformDataBase.Modules:
                     PlatformModule = PlatformDataBase.Modules[StrModule]
                     for LibraryClass in PlatformModule.LibraryClasses:
-                        if LibraryClass.startswith("NULL"):
+                        if LibraryClass.startswith("NULL") and LibraryClass[4:].isdigit():
                             self.InfModule.LibraryClasses[LibraryClass] = PlatformModule.LibraryClasses[LibraryClass]
 
                 DependencyList = [self.InfModule]
@@ -150,20 +149,25 @@ class FfsInfStatement(FfsInfStatementClassObject):
     #
     def __InfParse__(self, Dict = None, IsGenFfs=False):
 
-        GenFdsGlobalVariable.VerboseLogger( " Begine parsing INf file : %s" %self.InfFileName)
+        GenFdsGlobalVariable.VerboseLogger( " Begin parsing INF file : %s" %self.InfFileName)
 
         self.InfFileName = self.InfFileName.replace('$(WORKSPACE)', '')
         if len(self.InfFileName) > 1 and self.InfFileName[0] == '\\' and self.InfFileName[1] == '\\':
             pass
         elif self.InfFileName[0] == '\\' or self.InfFileName[0] == '/' :
-            self.InfFileName = self.InfFileName[1:]
+            ws_path = Path(GenFdsGlobalVariable.WorkSpaceDir)
+            inf_path = Path(self.InfFileName)
+            if ws_path in inf_path.parents:
+                self.InfFileName = str(inf_path.relative_to(ws_path))
+            else:
+                self.InfFileName = self.InfFileName[1:]
 
         if self.InfFileName.find('$') == -1:
             InfPath = NormPath(self.InfFileName)
             if not os.path.exists(InfPath):
                 InfPath = GenFdsGlobalVariable.ReplaceWorkspaceMacro(InfPath)
                 if not os.path.exists(InfPath):
-                    EdkLogger.error("GenFds", GENFDS_ERROR, "Non-existant Module %s !" % (self.InfFileName))
+                    EdkLogger.error("GenFds", GENFDS_ERROR, "Non-existent Module %s !" % (self.InfFileName))
 
         self.CurrentArch = self.GetCurrentArch()
         #
@@ -359,7 +363,7 @@ class FfsInfStatement(FfsInfStatementClassObject):
             os.makedirs(self.OutputPath)
 
         self.EfiOutputPath, self.EfiDebugPath = self.__GetEFIOutPutPath__()
-        GenFdsGlobalVariable.VerboseLogger( "ModuelEFIPath: " + self.EfiOutputPath)
+        GenFdsGlobalVariable.VerboseLogger( "ModuleEFIPath: " + self.EfiOutputPath)
 
     ## PatchEfiFile
     #
@@ -1124,5 +1128,3 @@ class FfsInfStatement(FfsInfStatementClassObject):
             EdkLogger.error("GenFds", FILE_WRITE_FAILURE, "Write data to file %s failed, please check whether the file been locked or using by other applications." %UniVfrOffsetFileName, None)
 
         fStringIO.close ()
-
-

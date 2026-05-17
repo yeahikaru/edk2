@@ -5,14 +5,13 @@
   SPDX-License-Identifier: BSD-2-Clause-Patent
 **/
 
-#ifndef MOCK_UEFI_RUNTIME_SERVICES_TABLE_LIB_H_
-#define MOCK_UEFI_RUNTIME_SERVICES_TABLE_LIB_H_
+#pragma once
 
 #include <Library/GoogleTestLib.h>
 #include <Library/FunctionMockLib.h>
 extern "C" {
-#include <Uefi.h>
-#include <Library/UefiRuntimeServicesTableLib.h>
+  #include <Uefi.h>
+  #include <Library/UefiRuntimeServicesTableLib.h>
 }
 
 struct MockUefiRuntimeServicesTableLib {
@@ -37,6 +36,11 @@ struct MockUefiRuntimeServicesTableLib {
      IN UINTN     DataSize,
      IN VOID      *Data)
     );
-};
 
-#endif
+  MOCK_FUNCTION_DECLARATION (
+    EFI_STATUS,
+    gRT_GetTime,
+    (OUT  EFI_TIME                    *Time,
+     OUT  EFI_TIME_CAPABILITIES       *Capabilities OPTIONAL)
+    );
+};

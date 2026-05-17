@@ -68,6 +68,9 @@ typedef struct {
 #define GNU_PROPERTY_AARCH64_FEATURE_1_BTI  0x1
 #define GNU_PROPERTY_AARCH64_FEATURE_1_PAC  0x2
 
+#define GNU_PROPERTY_RISCV64_FEATURE_1_AND   0xc0000000
+#define GNU_PROPERTY_RISCV64_FEATURE_1_FCFI  0x1 /* zicfilp */
+
 /* Indexes into the e_ident array.  Keep synced with
    http://www.sco.com/developers/gabi/latest/ch4.eheader.html */
 #define EI_MAG0    0  /* Magic number, byte 0. */
@@ -553,7 +556,7 @@ typedef struct {
 #define  R_386_TLS_TPOFF32  37  /* GOT entry of -ve static TLS offset */
 
 /* Null relocation */
-#define  R_AARCH64_NONE        256  /* No relocation */
+#define  R_AARCH64_NONE        0  /* No relocation */
 /* Static AArch64 relocations */
  /* Static data relocations */
 #define  R_AARCH64_ABS64        257  /* S + A */
@@ -1144,5 +1147,16 @@ typedef struct {
 #define R_LARCH_TLS_LD64_HI20              96
 #define R_LARCH_TLS_GD_PC_HI20             97
 #define R_LARCH_TLS_GD64_HI20              98
-#define R_LARCH_RELAX                      99
+#define R_LARCH_32_PCREL                   99
+#define R_LARCH_RELAX                      100
+#define R_LARCH_DELETE                     101
+#define R_LARCH_ALIGN                      102
+#define R_LARCH_PCREL20_S2                 103
+#define R_LARCH_CFA                        104
+#define R_LARCH_ADD6                       105
+#define R_LARCH_SUB6                       106
+#define R_LARCH_ADD_ULEB128                107
+#define R_LARCH_SUB_ULEB128                108
+#define R_LARCH_64_PCREL                   109
+
 #endif /* !_SYS_ELF_COMMON_H_ */

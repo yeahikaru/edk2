@@ -59,6 +59,7 @@ The framework currently supports the following table generators for ARM:
 * SRAT - System Resource Affinity Table
 * SSDT - Secondary System Description Table. This is essentially
          a RAW table generator.
+* HEST - Hardware Error Source Table
 
 ## Dynamic AML
 
@@ -157,6 +158,126 @@ performed, and validate the generated output.
      - Disassemble the generated AML using the iASL compiler
        and verifying the output.
 
+### Bespoke ACPI tables
+
+The Dynamic Tables framework supports the creation of several tables using
+standard generators, see Feature Summary Section for a list of such tables.
+
+The supported platforms already contain several tables.
+If a table is not present for the platform, two alternative processes can be followed:
+
+- define the table in using ASL,
+- define the table in packed C structures (also known as RAW).
+
+The two approaches are detailed below.
+
+#### Adding an ASL table for which the Dynamic Tables Framework does not provide a standard generator
+
+This method creates the SSDT table from the ASL source, using a standard generator.
+Perform the following steps:
+
+1. Create the table source file, placing it within the ConfigurationManager source tree, e.g.:
+
+Create a file Platform/ARM/VExpressPkg/ConfigurationManager/ConfigurationManagerDxe/AslTables/NewTableSource.asl
+with the following contents:
+
+```
+DefinitionBlock ("", "SSDT", 2, "XXXXXX", "XXXXXXXX", 1) {
+  Scope(_SB) {
+    Device(FLA0) {
+      Name(_HID, "XXXX0000")
+      Name(_UID, 0)
+
+      // _DSM - Device Specific Method
+      Function(_DSM,{IntObj,BuffObj},{BuffObj, IntObj, IntObj, PkgObj})
+      {
+          W0 = 0x1
+          return (W0)
+      }
+    }
+  }
+}
+```
+
+2. Reference the table source file in ConfigurationMangerDxe.inf
+
+```
+ [Sources]
+  AslTables/NewTableSource.asl
+```
+
+3. Update the ConfigurationManager.h file
+Platform/ARM/VExpressPkg/ConfigurationManager/ConfigurationManagerDxe/ConfigurationManager.h
+
+Add an array to hold the AML code:
+```
+   extern CHAR8 newtablesource_aml_code[];
+```
+
+Note: the array name is composed of the ASL source file name all in lower case, followed by the _aml_code postfix.
+
+4. Increment the macro PLAT_ACPI_TABLE_COUNT
+
+5. Add a new CM_STD_OBJ_ACPI_TABLE_INFO structure entry and initialise.
+
+ - the entry contains:
+    - the table signature,
+    - the table revision (unused in this case),
+    - the ID of the standard generator to be used (the SSDT generator in this case).
+    - a pointer to the AML code,
+
+```
+     // Table defined in the NewTableSource.asl file
+     {
+       EFI_ACPI_6_4_SECONDARY_SYSTEM_DESCRIPTION_TABLE_SIGNATURE,
+       0, // Unused
+       CREATE_STD_ACPI_TABLE_GEN_ID (EStdAcpiTableIdSsdt),
+       (EFI_ACPI_DESCRIPTION_HEADER*)newtablesource_aml_code
+     },
+```
+
+#### Add a RAW table for which there is no standard generator
+
+An ACPI table can be defined as a packed C struct in the C source code. This is referred to as the "raw" table format.
+The steps to create a table in raw format are detailed below:
+
+1. Define the table in a C source file and populate the ACPI table structure field with the required values.
+
+   For example, create the file Platform/ARM/VExpressPkg/ConfigurationManager/ConfigurationManagerDxe/RawTable.c
+
+```
+    // Example creating the HMAT in raw format
+    EFI_ACPI_HETEROGENEOUS_MEMORY_ATTRIBUTE_TABLE Hmat = {
+     ...
+    };
+```
+
+2. Reference the table source file in ConfigurationMangerDxe.inf
+
+```
+ [Sources]
+  RawTable.c
+```
+
+2. Increment the macro PLAT_ACPI_TABLE_COUNT
+
+3. Add a new CM_STD_OBJ_ACPI_TABLE_INFO structure entry and initialise.
+
+ - the entry contains:
+    - the table signature,
+    - the table revision,
+    - the RAW generator ID.
+    - a pointer to the C packed struct that defines the table,
+
+```
+    {
+      EFI_ACPI_6_3_HETEROGENEOUS_MEMORY_ATTRIBUTE_TABLE_SIGNATURE,
+      EFI_ACPI_6_3_HETEROGENEOUS_MEMORY_ATTRIBUTE_TABLE_REVISION,
+      CREATE_STD_ACPI_TABLE_GEN_ID (EStdAcpiTableIdRaw),
+      (EFI_ACPI_DESCRIPTION_HEADER*)&Hmat
+    },
+```
+
 # Roadmap
 
 The current implementation of the Configuration Manager populates the
@@ -194,18 +315,19 @@ parameter to the edk2 build system.
 Example:
 
 >build -a AARCH64 -p Platform\ARM\JunoPkg\ArmJuno.dsc
-   -t GCC5 **-D DYNAMIC_TABLES_FRAMEWORK**
+   -t GCC **-D DYNAMIC_TABLES_FRAMEWORK**
 
 or
 
 >build -a AARCH64 -p Platform\ARM\VExpressPkg\ArmVExpress-FVP-AArch64.dsc
-   -t GCC5 **-D DYNAMIC_TABLES_FRAMEWORK**
+   -t GCC **-D DYNAMIC_TABLES_FRAMEWORK**
 
 # Prerequisites
 
 Ensure that the latest ACPICA iASL compiler is used for building *Dynamic Tables Framework*.
 *Dynamic Tables Framework* has been tested using the following iASL compiler version:
-[Version 20200717](https://www.acpica.org/node/183), dated 17 July, 2020.
+[Version 20200717](https://www.intel.com/content/www/us/en/download/774849/774863/acpi-component-architecture-downloads-previous-releases-2020.html),
+dated 17 July, 2020.
 
 
 #Running CI builds locally
@@ -248,7 +370,7 @@ The instructions to setup the CI environment are in *'edk2\\.pytool\\Readme.md'*
     ```
         stuart_setup -c .pytool/CISettings.py TOOL_CHAIN_TAG=<TOOL_CHAIN_TAG> -a <TARGET_ARCH>
 
-        e.g. stuart_setup -c .pytool/CISettings.py TOOL_CHAIN_TAG=GCC5
+        e.g. stuart_setup -c .pytool/CISettings.py TOOL_CHAIN_TAG=GCC
     ```
 
 5. Initialize & Update Dependencies - only as needed when ext_deps change
@@ -256,7 +378,7 @@ The instructions to setup the CI environment are in *'edk2\\.pytool\\Readme.md'*
     ```
         stuart_update -c .pytool/CISettings.py TOOL_CHAIN_TAG=<TOOL_CHAIN_TAG> -a <TARGET_ARCH>
 
-        e.g. stuart_update -c .pytool/CISettings.py TOOL_CHAIN_TAG=GCC5
+        e.g. stuart_update -c .pytool/CISettings.py TOOL_CHAIN_TAG=GCC
     ```
 
 6. Compile the basetools if necessary - only when basetools C source files change
@@ -270,7 +392,7 @@ The instructions to setup the CI environment are in *'edk2\\.pytool\\Readme.md'*
     ```
         stuart_build-c .pytool/CISettings.py TOOL_CHAIN_TAG=<TOOL_CHAIN_TAG> -a <TARGET_ARCH>
 
-        e.g. stuart_ci_build -c .pytool/CISettings.py TOOL_CHAIN_TAG=GCC5 -p DynamicTablesPkg -a AARCH64 --verbose
+        e.g. stuart_ci_build -c .pytool/CISettings.py TOOL_CHAIN_TAG=GCC -p DynamicTablesPkg -a AARCH64 --verbose
     ```
 
     - use `stuart_build -c .pytool/CISettings.py -h` option to see help on additional options.
@@ -282,3 +404,133 @@ Refer to the following presentation from *UEFI Plugfest Seattle 2018*:
 
 [Dynamic Tables Framework: A Step Towards Automatic Generation of Advanced Configuration and Power Interface (ACPI) & System Management BIOS (SMBIOS) Tables](http://www.uefi.org/sites/default/files/resources/Arm_Dynamic%20Tables%20Framework%20A%20Step%20Towards%20Automatic%20Generation%20of%20Advanced%20Configuration%20and%20Power%20Interface%20%28ACPI%29%20%26%20System%20Management%20BIOS%20%28SMBIOS%29%20Tables%20_0.pdf)
 
+## Configuration Manager Objects
+
+The CM_OBJECT_ID type is used to identify the Configuration Manager
+    objects.
+
+## Description of Configuration Manager Object ID
+
+| 31     -     28 | 27 - 8 | 7    -    0 |
+| :-------------: | :----: | :---------: |
+| `Name Space ID` |    0   | `Object ID` |
+------------------------------------------
+
+### Name Space ID: Bits [31:28]
+
+|  ID   |  Description                      | Comments |
+| ---:  | :--------------------------       | :---     |
+| 0000b | Standard                          | |
+| 0001b | Arch Common                       | |
+| 0010b | ARM                               | |
+| 0011b | X64                               | |
+| 1111b | Custom/OEM                        | |
+| `*`   | All other values are reserved.    | |
+
+### Bits: [27:8] - Reserved, must be zero.
+
+### Bits: [7:0] - Object ID
+
+#### Object ID's in the Standard Namespace:
+
+|  ID   |  Description                      | Comments |
+| ---:  | :--------------------------       | :---     |
+|   0   | Configuration Manager Revision    | |
+|   1   | ACPI Table List                   | |
+|   2   | SMBIOS Table List                 | |
+
+#### Object ID's in the ARM Namespace:
+
+|  ID   |  Description                              | Comments |
+| ---:  | :--------------------------               | :---     |
+|   0   | Reserved                                  | |
+|   1   | Boot Architecture Info                    | |
+|   2   | GICC Info                                 | |
+|   3   | GICD Info                                 | |
+|   4   | GIC MSI Frame Info                        | |
+|   5   | GIC Redistributor Info                    | |
+|   6   | GIC ITS Info                              | |
+|   7   | Generic Timer Info                        | |
+|   8   | Platform GT Block Info                    | |
+|   9   | Generic Timer Block Frame Info            | |
+|  10   | Platform Generic Watchdog                 | |
+|  11   | ITS Group                                 | |
+|  12   | Named Component                           | |
+|  13   | Root Complex                              | |
+|  14   | SMMUv1 or SMMUv2                          | |
+|  15   | SMMUv3                                    | |
+|  16   | PMCG                                      | |
+|  17   | GIC ITS Identifier Array                  | |
+|  18   | ID Mapping Array                          | |
+|  19   | SMMU Interrupt Array                      | |
+|  20   | CMN 600 Info                              | |
+|  21   | Reserved Memory Range Node                | |
+|  22   | Memory Range Descriptor                   | |
+|  23   | Embedded Trace Extension/Module Info      | |
+|  `*`  | All other values are reserved.            | |
+
+#### Object ID's in the Arch Common Namespace:
+
+|  ID   |  Description                              | Comments |
+| ---:  | :--------------------------               | :---     |
+|   0   |  Reserved                                 | |
+|   1   | Power Management Profile Info             | |
+|   2   | Serial Port Info                          | |
+|   3   | Serial Console Port Info                  | |
+|   4   | Serial Debug Port Info                    | |
+|   5   | Hypervisor Vendor Id                      | |
+|   6   | Fixed feature flags for FADT              | |
+|   7   | CM Object Reference                       | |
+|   8   | PCI Configuration Space Info              | |
+|   9   | PCI Address Map Info                      | |
+|  10   | PCI Interrupt Map Info                    | |
+|  11   | Memory Affinity Info                      | |
+|  12   | Device Handle Acpi                        | |
+|  13   | Device Handle PCI                         | |
+|  14   | Generic Initiator Affinity Info           | |
+|  15   | Low Power Idle State Info                 | |
+|  16   | Processor Hierarchy Info                  | |
+|  17   | Cache Info                                | |
+|  18   | Continuous Performance Control Info       | |
+|  19   | Pcc Subspace Type 0 Info                  | |
+|  20   | Pcc Subspace Type 1 Info                  | |
+|  21   | Pcc Subspace Type 2 Info                  | |
+|  22   | Pcc Subspace Type 3 Info                  | |
+|  23   | Pcc Subspace Type 4 Info                  | |
+|  24   | Pcc Subspace Type 5 Info                  | |
+|  25   | P-State Dependency (PSD) Info             | |
+|  26   | TPM Interface Info                        | |
+|  27   | SPMI Interface Info                       | |
+|  28   | SPMI Interrupt and Device/Uid Info        | |
+|  29   | Processor C-State Control Info            | |
+|  30   | Processor C-State Dependency Info         | |
+|  31   | Processor P-State Control Info            | |
+|  32   | Processor P-State Status Info             | |
+|  33   | Processor P-State Capability Info         | |
+|  34   | _STA Device Status Info                   | |
+|  `*`  | All other values are reserved.            | |
+
+#### Object ID's in the X64 Namespace:
+
+|  ID   |  Description                              | Comments |
+| ---:  | :--------------------------               | :---     |
+|   0   | Reserved                                  | |
+|   1   | SCI Interrupt Info                        | |
+|   2   | SCI Command Info                          | |
+|   3   | Legacy Power Management Block Info        | |
+|   4   | Legacy GPE Block Info                     | |
+|   5   | Power Management Block Info               | |
+|   6   | GPE Block Info                            | |
+|   7   | Sleep Block Info                          | |
+|   8   | Reset Block Info                          | |
+|   9   | Miscellaneous Block Info                  | |
+|  10   | Windows protection flag Info              | |
+|  11   | HPET device Info                          | |
+|  12   | MADT Table Info                           | |
+|  13   | Local APIC and X2APIC info                | |
+|  14   | IO APIC info                              | |
+|  15   | Interrupt Source Override info            | |
+|  16   | Local APIC and X2APIC NMI info            | |
+|  17   | FACS Information                          | |
+|  18   | Local APIC and X2APIC Affinity info       | |
+|  `*`  | All other values are reserved.            | |

@@ -7,8 +7,7 @@
 
 **/
 
-#ifndef TIMER_H_
-#define TIMER_H_
+#pragma once
 
 #include <PiDxe.h>
 
@@ -21,10 +20,12 @@
 #include <Library/IoLib.h>
 
 //
-// RISC-V use 100us timer.
+// RISC-V use 100ns timer.
 // The default timer tick duration is set to 10 ms = 10 * 1000 * 10 100 ns units
 //
 #define DEFAULT_TIMER_TICK_DURATION  100000
+
+#define RISCV_CPU_FEATURE_SSTC_BITMASK  BIT1
 
 extern VOID
 RiscvSetTimerPeriod (
@@ -43,7 +44,7 @@ RiscvSetTimerPeriod (
 
   @retval EFI_SUCCESS            Timer Architectural Protocol created
   @retval EFI_OUT_OF_RESOURCES   Not enough resources available to initialize driver.
-  @retval EFI_DEVICE_ERROR       A device error occured attempting to initialize the driver.
+  @retval EFI_DEVICE_ERROR       A device error occurred attempting to initialize the driver.
 
 **/
 EFI_STATUS
@@ -173,5 +174,3 @@ TimerDriverGenerateSoftInterrupt (
   IN EFI_TIMER_ARCH_PROTOCOL  *This
   )
 ;
-
-#endif

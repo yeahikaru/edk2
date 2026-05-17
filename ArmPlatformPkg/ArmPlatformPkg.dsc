@@ -21,7 +21,7 @@
   PLATFORM_VERSION               = 0.1
   DSC_SPECIFICATION              = 0x0001001A
   OUTPUT_DIRECTORY               = Build/ArmPlatform
-  SUPPORTED_ARCHITECTURES        = ARM|AARCH64
+  SUPPORTED_ARCHITECTURES        = AARCH64
   BUILD_TARGETS                  = DEBUG|RELEASE|NOOPT
   SKUID_IDENTIFIER               = DEFAULT
 
@@ -36,12 +36,11 @@
 !include MdePkg/MdeLibs.dsc.inc
 
 [LibraryClasses.common]
-  ArmGicArchLib|ArmPkg/Library/ArmGicArchSecLib/ArmGicArchSecLib.inf
-  ArmGicLib|ArmPkg/Drivers/ArmGic/ArmGicLib.inf
-  ArmLib|ArmPkg/Library/ArmLib/ArmBaseLib.inf
+  ArmLib|MdePkg/Library/ArmLib/ArmBaseLib.inf
   ArmPlatformLib|ArmPlatformPkg/Library/ArmPlatformLibNull/ArmPlatformLibNull.inf
-  ArmPlatformStackLib|ArmPlatformPkg/Library/ArmPlatformStackLib/ArmPlatformStackLib.inf
-  ArmMmuLib|ArmPkg/Library/ArmMmuLib/ArmMmuBaseLib.inf
+  ArmMmuLib|UefiCpuPkg/Library/ArmMmuLib/ArmMmuBaseLib.inf
+  ArmSmcLib|MdePkg/Library/ArmSmcLib/ArmSmcLib.inf
+  ArmSvcLib|MdePkg/Library/ArmSvcLib/ArmSvcLib.inf
   BaseLib|MdePkg/Library/BaseLib/BaseLib.inf
   BaseMemoryLib|MdePkg/Library/BaseMemoryLib/BaseMemoryLib.inf
   CacheMaintenanceLib|ArmPkg/Library/ArmCacheMaintenanceLib/ArmCacheMaintenanceLib.inf
@@ -50,9 +49,8 @@
   DxeServicesTableLib|MdePkg/Library/DxeServicesTableLib/DxeServicesTableLib.inf
   HobLib|MdePkg/Library/DxeHobLib/DxeHobLib.inf
   IoLib|MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic.inf
-  LcdHwLib|ArmPlatformPkg/Library/LcdHwNullLib/LcdHwNullLib.inf
-  LcdPlatformLib|ArmPlatformPkg/Library/LcdPlatformNullLib/LcdPlatformNullLib.inf
-  LzmaDecompressLib|MdeModulePkg/Library/LzmaCustomDecompressLib/LzmaCustomDecompressLib.inf
+  LcdHwLib|ArmPlatformPkg/Library/LcdHwLibNull/LcdHwLibNull.inf
+  LcdPlatformLib|ArmPlatformPkg/Library/LcdPlatformLibNull/LcdPlatformLibNull.inf
   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
   MemoryInitPeiLib|ArmPlatformPkg/MemoryInitPei/MemoryInitPeiLib.inf
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
@@ -74,9 +72,7 @@
   UefiRuntimeLib|MdePkg/Library/UefiRuntimeLib/UefiRuntimeLib.inf
   DevicePathLib|MdePkg/Library/UefiDevicePathLib/UefiDevicePathLib.inf
   UefiRuntimeServicesTableLib|MdePkg/Library/UefiRuntimeServicesTableLib/UefiRuntimeServicesTableLib.inf
-
-  NULL|ArmPkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib.inf
-  NULL|MdePkg/Library/BaseStackCheckLib/BaseStackCheckLib.inf
+  ArmTransferListLib|ArmPkg/Library/ArmTransferListLib/ArmTransferListLib.inf
 
 [LibraryClasses.common.PEIM]
   HobLib|MdePkg/Library/PeiHobLib/PeiHobLib.inf
@@ -86,10 +82,15 @@
   PeiServicesTablePointerLib|MdePkg/Library/PeiServicesTablePointerLib/PeiServicesTablePointerLib.inf
 
 [LibraryClasses.common.SEC]
+  ArmFfaLib|MdeModulePkg/Library/ArmFfaLib/ArmFfaSecLib.inf
   ExtractGuidedSectionLib|EmbeddedPkg/Library/PrePiExtractGuidedSectionLib/PrePiExtractGuidedSectionLib.inf
   HobLib|EmbeddedPkg/Library/PrePiHobLib/PrePiHobLib.inf
   MemoryAllocationLib|EmbeddedPkg/Library/PrePiMemoryAllocationLib/PrePiMemoryAllocationLib.inf
   PrePiHobListPointerLib|ArmPlatformPkg/Library/PrePiHobListPointerLib/PrePiHobListPointerLib.inf
+  Tpm2CommandLib|SecurityPkg/Library/Tpm2CommandLib/Tpm2CommandLib.inf
+  Tpm2DeviceLib|SecurityPkg/Library/Tpm2DeviceLibFfa/Tpm2DeviceSecLibFfa.inf
+  HashLib|SecurityPkg/Library/HashLibTpm2/HashLibTpm2PeilessSecLib.inf
+  PeilessSecMeasureLib|SecurityPkg/Library/PeilessSecMeasureLib/PeilessSecMeasureLib.inf
 
 [LibraryClasses.AARCH64.MM_STANDALONE]
   HobLib|StandaloneMmPkg/Library/StandaloneMmHobLib/StandaloneMmHobLib.inf
@@ -103,10 +104,9 @@
   ArmPlatformPkg/Drivers/SP805WatchdogDxe/SP805WatchdogDxe.inf
 
   ArmPlatformPkg/Library/ArmPlatformLibNull/ArmPlatformLibNull.inf
-  ArmPlatformPkg/Library/ArmPlatformStackLib/ArmPlatformStackLib.inf
   ArmPlatformPkg/Library/HdLcd/HdLcd.inf
-  ArmPlatformPkg/Library/LcdHwNullLib/LcdHwNullLib.inf
-  ArmPlatformPkg/Library/LcdPlatformNullLib/LcdPlatformNullLib.inf
+  ArmPlatformPkg/Library/LcdHwLibNull/LcdHwLibNull.inf
+  ArmPlatformPkg/Library/LcdPlatformLibNull/LcdPlatformLibNull.inf
   ArmPlatformPkg/Library/PL011SerialPortLib/PL011SerialPortLib.inf
   ArmPlatformPkg/Library/PL011UartClockLib/PL011UartClockLib.inf
   ArmPlatformPkg/Library/PL011UartLib/PL011UartLib.inf
@@ -120,10 +120,7 @@
   ArmPlatformPkg/PlatformPei/PlatformPeim.inf
   ArmPlatformPkg/PlatformPei/PlatformPeiLib.inf
 
-  ArmPlatformPkg/PrePeiCore/PrePeiCoreMPCore.inf
-  ArmPlatformPkg/PrePeiCore/PrePeiCoreUniCore.inf
-
-  ArmPlatformPkg/PrePi/PeiMPCore.inf
-  ArmPlatformPkg/PrePi/PeiUniCore.inf
+  ArmPlatformPkg/Sec/Sec.inf
+  ArmPlatformPkg/PeilessSec/PeilessSec.inf
 
   ArmPlatformPkg/Library/ArmMaliDp/ArmMaliDp.inf

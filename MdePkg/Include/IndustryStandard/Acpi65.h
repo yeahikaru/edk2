@@ -2,14 +2,14 @@
   ACPI 6.5 definitions from the ACPI Specification Revision 6.5 Aug, 2022.
 
   Copyright (c) 2017 - 2022, Intel Corporation. All rights reserved.<BR>
-  Copyright (c) 2019 - 2021, ARM Ltd. All rights reserved.<BR>
+  Copyright (c) 2019 - 2026, ARM Ltd. All rights reserved.<BR>
   Copyright (c) 2023, Loongson Technology Corporation Limited. All rights reserved.<BR>
+  Copyright (C) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 **/
 
-#ifndef ACPI_6_5_H_
-#define ACPI_6_5_H_
+#pragma once
 
 #include <IndustryStandard/Acpi64.h>
 
@@ -17,6 +17,35 @@
 // Ensure proper structure formats
 //
 #pragma pack(1)
+
+///
+/// _STA bit definitions ACPI 6.5 s6.3.7
+///
+#define ACPI_AML_STA_DEVICE_STATUS_PRESET       0x1
+#define ACPI_AML_STA_DEVICE_STATUS_ENABLED      0x2
+#define ACPI_AML_STA_DEVICE_STATUS_UI           0x4
+#define ACPI_AML_STA_DEVICE_STATUS_FUNCTIONING  0x8
+#define ACPI_AML_STA_DEVICE_STATUS_BATTERY      0x10
+
+///
+/// _CSD Revision for ACPI 6.5
+///
+#define EFI_ACPI_6_5_AML_CSD_REVISION  0
+
+///
+/// _CSD NumEntries for ACPI 6.5
+///
+#define EFI_ACPI_6_5_AML_CSD_NUM_ENTRIES  6
+
+///
+/// _PSD Revision for ACPI 6.5
+///
+#define EFI_ACPI_6_5_AML_PSD_REVISION  0
+
+///
+/// _CPC Revision for ACPI 6.5
+///
+#define EFI_ACPI_6_5_AML_CPC_REVISION  3
 
 ///
 /// ACPI 6.5 Generic Address Space definition
@@ -43,6 +72,7 @@ typedef struct {
 #define EFI_ACPI_6_5_GENERAL_PURPOSE_IO              0x08
 #define EFI_ACPI_6_5_GENERIC_SERIAL_BUS              0x09
 #define EFI_ACPI_6_5_PLATFORM_COMMUNICATION_CHANNEL  0x0A
+#define EFI_ACPI_6_5_PLATFORM_RUNTIME_MECHANISM      0x0B
 #define EFI_ACPI_6_5_FUNCTIONAL_FIXED_HARDWARE       0x7F
 
 //
@@ -293,7 +323,7 @@ typedef struct {
 ///
 /// MADT Revision (as defined in ACPI 6.5 spec.)
 ///
-#define EFI_ACPI_6_5_MULTIPLE_APIC_DESCRIPTION_TABLE_REVISION  0x05
+#define EFI_ACPI_6_5_MULTIPLE_APIC_DESCRIPTION_TABLE_REVISION  0x06
 
 ///
 /// Multiple APIC Flags
@@ -525,6 +555,7 @@ typedef struct {
   UINT8     ProcessorPowerEfficiencyClass;
   UINT8     Reserved2;
   UINT16    SpeOverflowInterrupt;
+  UINT16    TrbeInterrupt;
 } EFI_ACPI_6_5_GIC_STRUCTURE;
 
 ///
@@ -533,6 +564,7 @@ typedef struct {
 #define EFI_ACPI_6_5_GIC_ENABLED                            BIT0
 #define EFI_ACPI_6_5_PERFORMANCE_INTERRUPT_MODEL            BIT1
 #define EFI_ACPI_6_5_VGIC_MAINTENANCE_INTERRUPT_MODE_FLAGS  BIT2
+#define EFI_ACPI_6_5_GIC_ONLINE_CAPABLE                     BIT3
 
 ///
 /// GIC Distributor Structure
@@ -760,7 +792,7 @@ typedef struct {
 
 //
 // SRAT structure types.
-// All other values between 0x06 an 0xFF are reserved and
+// All other values between 0x07 and 0xFF are reserved and
 // will be ignored by OSPM.
 //
 #define EFI_ACPI_6_5_PROCESSOR_LOCAL_APIC_SAPIC_AFFINITY  0x00
@@ -769,6 +801,7 @@ typedef struct {
 #define EFI_ACPI_6_5_GICC_AFFINITY                        0x03
 #define EFI_ACPI_6_5_GIC_ITS_AFFINITY                     0x04
 #define EFI_ACPI_6_5_GENERIC_INITIATOR_AFFINITY           0x05
+#define EFI_ACPI_6_5_GENERIC_PORT_AFFINITY                0x06
 
 ///
 /// Processor Local APIC/SAPIC Affinity Structure Definition
@@ -911,6 +944,18 @@ typedef struct {
 #define EFI_ACPI_6_5_GENERIC_INITIATOR_AFFINITY_STRUCTURE_ARCHITECTURAL_TRANSACTIONS  BIT1
 
 ///
+/// Generic Port Affinity Structure
+///
+typedef EFI_ACPI_6_5_GENERIC_INITIATOR_AFFINITY_STRUCTURE EFI_ACPI_6_5_GENERIC_PORT_AFFINITY_STRUCTURE;
+
+///
+/// Generic Port Affinity Structure Flags. All other bits are reserved
+/// and must be 0.
+///
+#define EFI_ACPI_6_5_GENERIC_PORT_AFFINITY_STRUCTURE_ENABLED                     BIT0
+#define EFI_ACPI_6_5_GENERIC_PORT_AFFINITY_STRUCTURE_ARCHITECTURAL_TRANSACTIONS  BIT1
+
+///
 /// System Locality Distance Information Table (SLIT).
 /// The rest of the table is a matrix.
 ///
@@ -1042,6 +1087,26 @@ typedef struct {
 #define EFI_ACPI_6_5_RASF_PATROL_SCRUB_COMMAND_GET_PATROL_PARAMETERS  0x01
 #define EFI_ACPI_6_5_RASF_PATROL_SCRUB_COMMAND_START_PATROL_SCRUBBER  0x02
 #define EFI_ACPI_6_5_RASF_PATROL_SCRUB_COMMAND_STOP_PATROL_SCRUBBER   0x03
+
+///
+/// ACPI RAS2 PCC Descriptor
+///
+typedef struct {
+  UINT8     PccId;
+  UINT8     Reserved[2];
+  UINT8     RasFeatureType;
+  UINT32    Instance;
+} EFI_ACPI_RAS2_PCC_DESCRIPTOR;
+
+///
+/// ACPI RAS2 Feature Table definition.
+///
+typedef struct {
+  EFI_ACPI_DESCRIPTION_HEADER    Header;
+  UINT16                         Reserved;
+  UINT16                         PccCount;
+  // EFI_ACPI_RAS2_PCC_DESCRIPTOR Descriptors[PccCount];
+} EFI_ACPI_6_5_RAS2_FEATURE_TABLE;
 
 ///
 /// Memory Power State Table definition.
@@ -1608,7 +1673,7 @@ typedef struct {
 #define EFI_ACPI_6_5_NFIT_GUID_BYTE_ADDRESSABLE_PERSISTENT_MEMORY_REGION           { 0x66F0D379, 0xB4F3, 0x4074, { 0xAC, 0x43, 0x0D, 0x33, 0x18, 0xB7, 0x8C, 0xDB }}
 #define EFI_ACPI_6_5_NFIT_GUID_NVDIMM_CONTROL_REGION                               { 0x92F701F6, 0x13B4, 0x405D, { 0x91, 0x0B, 0x29, 0x93, 0x67, 0xE8, 0x23, 0x4C }}
 #define EFI_ACPI_6_5_NFIT_GUID_NVDIMM_BLOCK_DATA_WINDOW_REGION                     { 0x91AF0530, 0x5D86, 0x470E, { 0xA6, 0xB0, 0x0A, 0x2D, 0xB9, 0x40, 0x82, 0x49 }}
-#define EFI_ACPI_6_5_NFIT_GUID_RAM_DISK_SUPPORTING_VIRTUAL_DISK_REGION_VOLATILE    { 0x77AB535A, 0x45FC, 0x6.5B, { 0x55, 0x60, 0xF7, 0xB2, 0x81, 0xD1, 0xF9, 0x6E }}
+#define EFI_ACPI_6_5_NFIT_GUID_RAM_DISK_SUPPORTING_VIRTUAL_DISK_REGION_VOLATILE    { 0x77AB535A, 0x45FC, 0x624B, { 0x55, 0x60, 0xF7, 0xB2, 0x81, 0xD1, 0xF9, 0x6E }}
 #define EFI_ACPI_6_5_NFIT_GUID_RAM_DISK_SUPPORTING_VIRTUAL_CD_REGION_VOLATILE      { 0x3D5ABD30, 0x4175, 0x87CE, { 0x6D, 0x64, 0xD2, 0xAD, 0xE5, 0x23, 0xC4, 0xBB }}
 #define EFI_ACPI_6_5_NFIT_GUID_RAM_DISK_SUPPORTING_VIRTUAL_DISK_REGION_PERSISTENT  { 0x5CEA02C9, 0x4D07, 0x69D3, { 0x26, 0x9F ,0x44, 0x96, 0xFB, 0xE0, 0x96, 0xF9 }}
 #define EFI_ACPI_6_5_NFIT_GUID_RAM_DISK_SUPPORTING_VIRTUAL_CD_REGION_PERSISTENT    { 0x08018188, 0x42CD, 0xBB48, { 0x10, 0x0F, 0x53, 0x87, 0xD5, 0x3D, 0xED, 0x3D }}
@@ -1936,7 +2001,7 @@ typedef struct {
 ///
 /// HEST Version (as defined in ACPI 6.5 spec.)
 ///
-#define EFI_ACPI_6_5_HARDWARE_ERROR_SOURCE_TABLE_REVISION  0x01
+#define EFI_ACPI_6_5_HARDWARE_ERROR_SOURCE_TABLE_REVISION  0x02
 
 //
 // Error Source structure types.
@@ -2406,7 +2471,7 @@ typedef struct {
 ///
 /// EINJ Version (as defined in ACPI 6.5 spec.)
 ///
-#define EFI_ACPI_6_5_ERROR_INJECTION_TABLE_REVISION  0x01
+#define EFI_ACPI_6_5_ERROR_INJECTION_TABLE_REVISION  0x02
 
 ///
 /// EINJ Error Injection Actions
@@ -2419,6 +2484,10 @@ typedef struct {
 #define EFI_ACPI_6_5_EINJ_EXECUTE_OPERATION               0x05
 #define EFI_ACPI_6_5_EINJ_CHECK_BUSY_STATUS               0x06
 #define EFI_ACPI_6_5_EINJ_GET_COMMAND_STATUS              0x07
+#define EFI_ACPI_6_5_EINJ_SET_ERROR_TYPE_WITH_ADDRESS     0x08
+#define EFI_ACPI_6_5_EINJ_GET_EXECUTE_OPERATION_TIMINGS   0x09
+#define EFI_ACPI_6_5_EINJ_EINJV2_SET_ERROR_TYPE           0x10
+#define EFI_ACPI_6_5_EINJ_EINJV2_GET_ERROR_TYPE           0x11
 #define EFI_ACPI_6_5_EINJ_TRIGGER_ERROR                   0xFF
 
 ///
@@ -2480,6 +2549,31 @@ typedef struct {
   UINT32    TableSize;
   UINT32    EntryCount;
 } EFI_ACPI_6_5_EINJ_TRIGGER_ACTION_TABLE;
+
+///
+/// EINJ Vendor Error Type Extension
+///
+typedef struct {
+  UINT32    Length;
+  UINT32    SBDF;
+  UINT16    VendorID;
+  UINT16    DeviceID;
+  UINT8     RevID;
+  UINT8     Reserved[3];
+} EFI_ACPI_6_5_VENDOR_ERROR_TYPE_EXTENSION_STRUCTURE;
+
+///
+/// EINJ Set Error Type With Address
+///
+typedef struct {
+  UINT32    ErrorType;
+  UINT32    VendorStructureOffset;
+  UINT32    Flags;
+  UINT32    ProcessorId;
+  UINT64    MemAddr;
+  UINT64    MemAddrRange;
+  UINT32    PcieSBDF;
+} EFI_ACPI_6_5_SET_ERROR_TYPE_WITH_ADDRESS;
 
 ///
 /// Platform Communications Channel Table (PCCT)
@@ -2898,7 +2992,7 @@ typedef struct {
   UINT8     Reserved[3];
   UINT32    RecordCount;
   // UINT8   PhatVersionElement[];
-} EFI_ACPI_6_5_PHAT_FIRMWARE_VERISON_DATA_RECORD;
+} EFI_ACPI_6_5_PHAT_FIRMWARE_VERSION_DATA_RECORD;
 
 #define EFI_ACPI_6_5_PHAT_FIRMWARE_VERSION_DATA_RECORD_REVISION  0x01
 
@@ -2926,6 +3020,54 @@ typedef struct {
 #define EFI_ACPI_6_5_PHAT_FIRMWARE_HEALTH_DATA_RECORD_NO_ERRORS_FOUND  0x01
 #define EFI_ACPI_6_5_PHAT_FIRMWARE_HEALTH_DATA_RECORD_UNKNOWN          0x02
 #define EFI_ACPI_6_5_PHAT_FIRMWARE_HEALTH_DATA_RECORD_ADVISORY         0x03
+
+///
+/// Reset Reason Health Record Vendor Data Entry
+///
+typedef struct {
+  GUID      VendorDataID;
+  UINT16    Length;
+  UINT16    Revision;
+  // UINTN   Data[];
+} EFI_ACPI_6_5_PHAT_RESET_REASON_HEALTH_RECORD_VENDOR_DATA_ENTRY;
+
+///
+/// Reset Reason Health Record Structure
+///
+typedef struct {
+  UINT8     SupportedSources;
+  UINT8     Source;
+  UINT8     SubSource;
+  UINT8     Reason;
+  UINT16    VendorCount;
+  // EFI_ACPI_6_5_PHAT_RESET_REASON_HEALTH_RECORD_VENDOR_DATA_ENTRY   VendorSpecificResetReasonEntry[];
+} EFI_ACPI_6_5_PHAT_RESET_REASON_HEALTH_RECORD_STRUCTURE;
+
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_HEADER_GUID  { 0x7a014ce2, 0xf263, 0x4b77, { 0xb8, 0x8a, 0xe6, 0x33, 0x6b, 0x78, 0x2c, 0x14 }}
+
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SUPPORTED_SOURCES_UNKNOWN     BIT0
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SUPPORTED_SOURCES_HARDWARE    BIT1
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SUPPORTED_SOURCES_FIRMWARE    BIT2
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SUPPORTED_SOURCES_SOFTWARE    BIT3
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SUPPORTED_SOURCES_SUPERVISOR  BIT4
+
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SOURCES_UNKNOWN     BIT0
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SOURCES_HARDWARE    BIT1
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SOURCES_FIRMWARE    BIT2
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SOURCES_SOFTWARE    BIT3
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_SOURCES_SUPERVISOR  BIT4
+
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_UNKNOWN           0x00
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_COLD_BOOT         0x01
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_COLD_RESET        0x02
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_WARM_RESET        0x03
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_UPDATE            0x04
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_UNEXPECTED_RESET  0x20
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_FAULT             0x21
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_TIMEOUT           0x22
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_THERMAL           0x23
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_POWER_LOSS        0x24
+#define EFI_ACPI_6_5_PHAT_RESET_REASON_REASON_POWER_BUTTON      0x25
 
 //
 // Known table signatures
@@ -3055,6 +3197,11 @@ typedef struct {
 /// "PSDT" Persistent System Description Table
 ///
 #define EFI_ACPI_6_5_PERSISTENT_SYSTEM_DESCRIPTION_TABLE_SIGNATURE  SIGNATURE_32('P', 'S', 'D', 'T')
+
+///
+/// "RAS2" ACPI RAS2 Feature Table
+///
+#define EFI_ACPI_6_5_ACPI_RAS2_FEATURE_TABLE_SIGNATURE  SIGNATURE_32('R', 'A', 'S', '2')
 
 ///
 /// "RASF" ACPI RAS Feature Table
@@ -3251,6 +3398,9 @@ typedef struct {
 ///
 #define EFI_ACPI_6_5_XEN_PROJECT_TABLE_SIGNATURE  SIGNATURE_32('X', 'E', 'N', 'V')
 
-#pragma pack()
+///
+/// "MPAM" Memory System Resource Partitioning and Monitoring Table
+///
+#define EFI_ACPI_MEMORY_SYSTEM_RESOURCE_PARTITIONING_AND_MONITORING_TABLE_SIGNATURE  SIGNATURE_32('M', 'P', 'A', 'M')
 
-#endif
+#pragma pack()

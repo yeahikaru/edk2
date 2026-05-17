@@ -7,9 +7,9 @@
 //
 //------------------------------------------------------------------------------
 
-#include <Chipset/AArch64.h>
+#include <AArch64/AArch64.h>
 #include <Library/PcdLib.h>
-#include <AsmMacroIoLibV8.h>
+#include <AsmMacroLib.h>
 #include <Protocol/DebugSupport.h> // for exception type definitions
 
 /*
@@ -92,7 +92,6 @@
   UINT64  Padding;0x328   // Required for stack alignment
 */
 
-GCC_ASM_EXPORT(ExceptionHandlersEnd)
 GCC_ASM_EXPORT(CommonCExceptionHandler)
 
 .text
@@ -108,13 +107,6 @@ GCC_ASM_EXPORT(CommonCExceptionHandler)
 // The conditional below adjusts the alignment requirement based on which
 // exception vector initialization method is used.
 //
-
-#if defined(ARM_RELOCATE_VECTORS)
-GCC_ASM_EXPORT(ExceptionHandlersStart)
-ASM_PFX(ExceptionHandlersStart):
-#else
-VECTOR_BASE(ExceptionHandlersStart)
-#endif
 
   .macro  ExceptionEntry, val, sp=SPx
   //
@@ -168,99 +160,83 @@ VECTOR_BASE(ExceptionHandlersStart)
   mov       x0, #\val
 
   // Jump to our general handler to deal with all the common parts and process the exception.
-#if defined(ARM_RELOCATE_VECTORS)
-  ldr       x1, =ASM_PFX(CommonExceptionEntry)
-  br        x1
-  .ltorg
-#else
   b         ASM_PFX(CommonExceptionEntry)
-#endif
   .endm
 
-//
-// Current EL with SP0 : 0x0 - 0x180
-//
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SP0_SYNC)
-ASM_PFX(SynchronousExceptionSP0):
-  ExceptionEntry  EXCEPT_AARCH64_SYNCHRONOUS_EXCEPTIONS
+#define EXCEPTION_VECTOR                                                  \
+/* Current EL with SP0 : 0x0 - 0x180 */                                   \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SP0_SYNC)             \
+ASM_PFX(SynchronousExceptionSP0):                                         \
+  ExceptionEntry  EXCEPT_AARCH64_SYNCHRONOUS_EXCEPTIONS                  ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SP0_IRQ)              \
+ASM_PFX(IrqSP0):                                                          \
+  ExceptionEntry  EXCEPT_AARCH64_IRQ                                     ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SP0_FIQ)              \
+ASM_PFX(FiqSP0):                                                          \
+  ExceptionEntry  EXCEPT_AARCH64_FIQ                                     ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SP0_SERR)             \
+ASM_PFX(SErrorSP0):                                                       \
+  ExceptionEntry  EXCEPT_AARCH64_SERROR                                  ;\
+                                                                          \
+/* Current EL with SPx: 0x200 - 0x380 */                                  \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SPX_SYNC)             \
+ASM_PFX(SynchronousExceptionSPx):                                         \
+  ExceptionEntry  EXCEPT_AARCH64_SYNCHRONOUS_EXCEPTIONS, SP0             ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SPX_IRQ)              \
+ASM_PFX(IrqSPx):                                                          \
+  ExceptionEntry  EXCEPT_AARCH64_IRQ                                     ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SPX_FIQ)              \
+ASM_PFX(FiqSPx):                                                          \
+  ExceptionEntry  EXCEPT_AARCH64_FIQ                                     ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SPX_SERR)             \
+ASM_PFX(SErrorSPx):                                                       \
+  ExceptionEntry  EXCEPT_AARCH64_SERROR                                  ;\
+                                                                          \
+/* Lower EL using AArch64 : 0x400 - 0x580 */                              \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A64_SYNC)             \
+ASM_PFX(SynchronousExceptionA64):                                         \
+  ExceptionEntry  EXCEPT_AARCH64_SYNCHRONOUS_EXCEPTIONS                  ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A64_IRQ)              \
+ASM_PFX(IrqA64):                                                          \
+  ExceptionEntry  EXCEPT_AARCH64_IRQ                                     ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A64_FIQ)              \
+ASM_PFX(FiqA64):                                                          \
+  ExceptionEntry  EXCEPT_AARCH64_FIQ                                     ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A64_SERR)             \
+ASM_PFX(SErrorA64):                                                       \
+  ExceptionEntry  EXCEPT_AARCH64_SERROR                                  ;\
+                                                                          \
+/* Lower EL using AArch32 : 0x600 - 0x780 */                              \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A32_SYNC)             \
+ASM_PFX(SynchronousExceptionA32):                                         \
+  ExceptionEntry  EXCEPT_AARCH64_SYNCHRONOUS_EXCEPTIONS                  ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A32_IRQ)              \
+ASM_PFX(IrqA32):                                                          \
+  ExceptionEntry  EXCEPT_AARCH64_IRQ                                     ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A32_FIQ)              \
+ASM_PFX(FiqA32):                                                          \
+  ExceptionEntry  EXCEPT_AARCH64_FIQ                                     ;\
+                                                                          \
+VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A32_SERR)             \
+ASM_PFX(SErrorA32):                                                       \
+  ExceptionEntry  EXCEPT_AARCH64_SERROR                                  ;\
 
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SP0_IRQ)
-ASM_PFX(IrqSP0):
-  ExceptionEntry  EXCEPT_AARCH64_IRQ
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SP0_FIQ)
-ASM_PFX(FiqSP0):
-  ExceptionEntry  EXCEPT_AARCH64_FIQ
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SP0_SERR)
-ASM_PFX(SErrorSP0):
-  ExceptionEntry  EXCEPT_AARCH64_SERROR
-
-//
-// Current EL with SPx: 0x200 - 0x380
-//
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SPX_SYNC)
-ASM_PFX(SynchronousExceptionSPx):
-  ExceptionEntry  EXCEPT_AARCH64_SYNCHRONOUS_EXCEPTIONS, SP0
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SPX_IRQ)
-ASM_PFX(IrqSPx):
-  ExceptionEntry  EXCEPT_AARCH64_IRQ
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SPX_FIQ)
-ASM_PFX(FiqSPx):
-  ExceptionEntry  EXCEPT_AARCH64_FIQ
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_CUR_SPX_SERR)
-ASM_PFX(SErrorSPx):
-  ExceptionEntry  EXCEPT_AARCH64_SERROR
-
-//
-// Lower EL using AArch64 : 0x400 - 0x580
-//
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A64_SYNC)
-ASM_PFX(SynchronousExceptionA64):
-  ExceptionEntry  EXCEPT_AARCH64_SYNCHRONOUS_EXCEPTIONS
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A64_IRQ)
-ASM_PFX(IrqA64):
-  ExceptionEntry  EXCEPT_AARCH64_IRQ
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A64_FIQ)
-ASM_PFX(FiqA64):
-  ExceptionEntry  EXCEPT_AARCH64_FIQ
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A64_SERR)
-ASM_PFX(SErrorA64):
-  ExceptionEntry  EXCEPT_AARCH64_SERROR
-
-//
-// Lower EL using AArch32 : 0x600 - 0x780
-//
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A32_SYNC)
-ASM_PFX(SynchronousExceptionA32):
-  ExceptionEntry  EXCEPT_AARCH64_SYNCHRONOUS_EXCEPTIONS
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A32_IRQ)
-ASM_PFX(IrqA32):
-  ExceptionEntry  EXCEPT_AARCH64_IRQ
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A32_FIQ)
-ASM_PFX(FiqA32):
-  ExceptionEntry  EXCEPT_AARCH64_FIQ
-
-VECTOR_ENTRY(ExceptionHandlersStart, ARM_VECTOR_LOW_A32_SERR)
-ASM_PFX(SErrorA32):
-  ExceptionEntry  EXCEPT_AARCH64_SERROR
-
-VECTOR_END(ExceptionHandlersStart)
-
-ASM_PFX(ExceptionHandlersEnd):
-
+VECTOR_TABLE(ExceptionHandlersStart, EXCEPTION_VECTOR)
 
 ASM_PFX(CommonExceptionEntry):
 
-  EL1_OR_EL2_OR_EL3(x1)
+  EL1_OR_EL2(x1)
 1:mrs      x2, elr_el1   // Exception Link Register
   mrs      x3, spsr_el1  // Saved Processor Status Register 32bit
   mrs      x5, esr_el1   // EL1 Exception syndrome register 32bit
@@ -271,12 +247,6 @@ ASM_PFX(CommonExceptionEntry):
   mrs      x3, spsr_el2  // Saved Processor Status Register 32bit
   mrs      x5, esr_el2   // EL2 Exception syndrome register 32bit
   mrs      x6, far_el2   // EL2 Fault Address Register
-  b        4f
-
-3:mrs      x2, elr_el3   // Exception Link Register
-  mrs      x3, spsr_el3  // Saved Processor Status Register 32bit
-  mrs      x5, esr_el3   // EL3 Exception syndrome register 32bit
-  mrs      x6, far_el3   // EL3 Fault Address Register
 
 4:mrs      x4, fpsr      // Floating point Status Register  32bit
 
@@ -365,15 +335,12 @@ ASM_PFX(CommonExceptionEntry):
   msr   daifset, #3
   isb
 
-  EL1_OR_EL2_OR_EL3(x28)
+  EL1_OR_EL2(x28)
 1:msr      elr_el1, x29  // Exception Link Register
   msr      spsr_el1, x30 // Saved Processor Status Register 32bit
   b        4f
 2:msr      elr_el2, x29  // Exception Link Register
   msr      spsr_el2, x30 // Saved Processor Status Register 32bit
-  b        4f
-3:msr      elr_el3, x29  // Exception Link Register
-  msr      spsr_el3, x30 // Saved Processor Status Register 32bit
 4:
 
   // pop remaining GP regs and return from exception.

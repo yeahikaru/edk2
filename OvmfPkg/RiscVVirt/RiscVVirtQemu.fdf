@@ -12,16 +12,24 @@
 !include RiscVVirt.fdf.inc
 
 ################################################################################
-[FD.RISCV_VIRT]
-BaseAddress   = $(FW_BASE_ADDRESS)|gUefiOvmfPkgTokenSpaceGuid.PcdOvmfFdBaseAddress
-Size          = $(FW_SIZE)|gUefiOvmfPkgTokenSpaceGuid.PcdOvmfFirmwareFdSize
+[FD.RISCV_VIRT_CODE]
+BaseAddress   = $(CODE_BASE_ADDRESS)|gUefiOvmfPkgTokenSpaceGuid.PcdOvmfFdBaseAddress
+Size          = $(CODE_SIZE)|gUefiOvmfPkgTokenSpaceGuid.PcdOvmfFirmwareFdSize
 ErasePolarity = 1
 BlockSize     = $(BLOCK_SIZE)
-NumBlocks     = $(FW_BLOCKS)
+NumBlocks     = $(CODE_BLOCKS)
 
 0x00000000|$(CODE_SIZE)
 gUefiOvmfPkgTokenSpaceGuid.PcdOvmfDxeMemFvBase|gUefiOvmfPkgTokenSpaceGuid.PcdOvmfDxeMemFvSize
 FV = FVMAIN_COMPACT
+
+################################################################################
+[FD.RISCV_VIRT_VARS]
+BaseAddress   = $(VARS_BASE_ADDRESS)
+Size          = $(VARS_SIZE)
+ErasePolarity = 1
+BlockSize     = $(VARS_BLOCK_SIZE)
+NumBlocks     = $(VARS_BLOCKS)
 
 !include VarStore.fdf.inc
 ################################################################################
@@ -45,6 +53,16 @@ READ_STATUS        = TRUE
 READ_LOCK_CAP      = TRUE
 READ_LOCK_STATUS   = TRUE
 
+APRIORI DXE {
+  INF  MdeModulePkg/Universal/DevicePathDxe/DevicePathDxe.inf
+  INF  MdeModulePkg/Universal/PCD/Dxe/Pcd.inf
+  INF  MdeModulePkg/Universal/ReportStatusCodeRouter/RuntimeDxe/ReportStatusCodeRouterRuntimeDxe.inf
+  INF  MdeModulePkg/Universal/StatusCodeHandler/RuntimeDxe/StatusCodeHandlerRuntimeDxe.inf
+  INF  EmbeddedPkg/Drivers/FdtClientDxe/FdtClientDxe.inf
+  INF  UefiCpuPkg/CpuDxeRiscV64/CpuDxeRiscV64.inf
+  INF  OvmfPkg/VirtNorFlashDxe/VirtNorFlashDxe.inf
+}
+
 #
 # DXE Phase modules
 #
@@ -63,9 +81,34 @@ INF  MdeModulePkg/Core/RuntimeDxe/RuntimeDxe.inf
 INF  MdeModulePkg/Universal/SecurityStubDxe/SecurityStubDxe.inf
 INF  MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf
 INF  MdeModulePkg/Universal/FaultTolerantWriteDxe/FaultTolerantWriteDxe.inf
-INF  MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf
+!if $(QEMU_PV_VARS) == TRUE
+  INF OvmfPkg/VirtMmCommunicationDxe/VirtMmCommunication.inf
+  INF MdeModulePkg/Universal/Variable/RuntimeDxe/VariableSmmRuntimeDxe.inf
+!else
+  INF  MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf
+!endif
 !if $(SECURE_BOOT_ENABLE) == TRUE
   INF  SecurityPkg/VariableAuthenticated/SecureBootConfigDxe/SecureBootConfigDxe.inf
+  !if $(SECURE_BOOT_DEFAULT_KEYS) == TRUE
+  INF  OvmfPkg/RiscVVirt/Feature/SecureBoot/SecureBootDefaultKeysInit/SecureBootDefaultKeysInit.inf
+
+  FILE FREEFORM = 85254ea7-4759-4fc4-82d4-5eed5fb0a4a0 {
+    SECTION RAW = OvmfPkg/RiscVVirt/Feature/SecureBoot/SecureBootKeys/PK/PK.cer
+  }
+
+  FILE FREEFORM = 6f64916e-9f7a-4c35-b952-cd041efb05a3 {
+    SECTION RAW = OvmfPkg/RiscVVirt/Feature/SecureBoot/SecureBootKeys/KEK/MicCorKEKCA2011_2011-06-24.crt
+  }
+
+  FILE FREEFORM = c491d352-7623-4843-accc-2791a7574421 {
+    SECTION RAW = OvmfPkg/RiscVVirt/Feature/SecureBoot/SecureBootKeys/db/MicWinProPCA2011_2011-10-19.crt
+    SECTION RAW = OvmfPkg/RiscVVirt/Feature/SecureBoot/SecureBootKeys/db/MicCorUEFCA2011_2011-06-27.crt
+  }
+
+  FILE FREEFORM = 5740766a-718e-4dc0-9935-c36f7d3f884f {
+    SECTION RAW = OvmfPkg/RiscVVirt/Feature/SecureBoot/SecureBootKeys/dbx/dbxupdate_x64.bin
+  }
+  !endif
 !endif
 INF  MdeModulePkg/Universal/MonotonicCounterRuntimeDxe/MonotonicCounterRuntimeDxe.inf
 INF  MdeModulePkg/Universal/ResetSystemRuntimeDxe/ResetSystemRuntimeDxe.inf
@@ -111,10 +154,7 @@ INF  OvmfPkg/VirtioNetDxe/VirtioNet.inf
 INF  OvmfPkg/VirtioScsiDxe/VirtioScsi.inf
 INF  OvmfPkg/VirtioRngDxe/VirtioRng.inf
 
-INF  ShellPkg/Application/Shell/Shell.inf
-INF  ShellPkg/DynamicCommand/TftpDynamicCommand/TftpDynamicCommand.inf
-INF  ShellPkg/DynamicCommand/HttpDynamicCommand/HttpDynamicCommand.inf
-INF  OvmfPkg/LinuxInitrdDynamicShellCommand/LinuxInitrdDynamicShellCommand.inf
+!include OvmfPkg/Include/Fdf/ShellDxe.fdf.inc
 
 #
 # Bds
@@ -166,7 +206,7 @@ INF  OvmfPkg/AcpiPlatformDxe/AcpiPlatformDxe.inf
 #
 # PCI support
 #
-INF  OvmfPkg/RiscVVirt/PciCpuIo2Dxe/PciCpuIo2Dxe.inf
+INF  UefiCpuPkg/CpuMmio2Dxe/CpuMmio2Dxe.inf
 INF  MdeModulePkg/Bus/Pci/PciHostBridgeDxe/PciHostBridgeDxe.inf
 INF  MdeModulePkg/Bus/Pci/PciBusDxe/PciBusDxe.inf
 INF  OvmfPkg/PciHotPlugInitDxe/PciHotPlugInit.inf
@@ -176,6 +216,7 @@ INF  OvmfPkg/Virtio10Dxe/Virtio10.inf
 #
 # Video support
 #
+INF  OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf
 INF  OvmfPkg/QemuRamfbDxe/QemuRamfbDxe.inf
 INF  OvmfPkg/VirtioGpuDxe/VirtioGpu.inf
 INF  OvmfPkg/PlatformDxe/Platform.inf
@@ -191,6 +232,16 @@ INF  MdeModulePkg/Bus/Usb/UsbKbDxe/UsbKbDxe.inf
 INF  MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
 
 #
+# TPM2 support
+#
+!if $(TPM2_ENABLE) == TRUE
+  INF SecurityPkg/Tcg/Tcg2Dxe/Tcg2Dxe.inf
+!if $(TPM2_CONFIG_ENABLE) == TRUE
+  INF SecurityPkg/Tcg/Tcg2Config/Tcg2ConfigDxe.inf
+!endif
+!endif
+
+#
 # TianoCore logo (splash screen)
 #
 INF  MdeModulePkg/Logo/LogoDxe.inf
@@ -200,7 +251,10 @@ INF  MdeModulePkg/Logo/LogoDxe.inf
 #
 INF  MdeModulePkg/Universal/Disk/RamDiskDxe/RamDiskDxe.inf
 
-#INF  MdeModulePkg/Universal/MemoryTest/NullMemoryTestDxe/NullMemoryTestDxe.inf
+!if $(CAPSULE_ENABLE) == TRUE
+INF  MdeModulePkg/Universal/EsrtFmpDxe/EsrtFmpDxe.inf
+INF  FILE_GUID = $(FMP_SYSTEM_DEVICE) FmpDevicePkg/FmpDxe/FmpDxe.inf
+!endif
 
 ################################################################################
 
@@ -223,7 +277,21 @@ READ_LOCK_CAP      = TRUE
 READ_LOCK_STATUS   = TRUE
 FvNameGuid         = 27A72E80-3118-4c0c-8673-AA5B4EFA9613
 
-INF OvmfPkg/RiscVVirt/Sec/SecMain.inf
+INF  UefiCpuPkg/SecCore/SecCoreNative.inf
+
+!if $(RISCVVIRT_PEI_BOOTING) == TRUE
+  INF  OvmfPkg/RiscVVirt/PlatformPei/PlatformPeim.inf
+  INF  MdeModulePkg/Core/Pei/PeiMain.inf
+  INF  MdeModulePkg/Universal/PCD/Pei/Pcd.inf
+  INF  MdeModulePkg/Universal/Variable/Pei/VariablePei.inf
+  INF  MdeModulePkg/Core/DxeIplPeim/DxeIpl.inf
+!if $(TPM2_ENABLE) == TRUE
+  INF SecurityPkg/Tcg/Tcg2Pei/Tcg2Pei.inf
+!if $(TPM2_CONFIG_ENABLE) == TRUE
+  INF OvmfPkg/Tcg/Tcg2Config/Tcg2ConfigPei.inf
+!endif
+!endif
+!endif
 
 FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
    SECTION GUIDED EE4E5898-3914-4259-9D6E-DC7BD79403CF PROCESSING_REQUIRED = TRUE {
@@ -232,30 +300,30 @@ FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
  }
 
 [Rule.Common.SEC]
-  FILE SEC = $(NAMED_GUID) RELOCS_STRIPPED {
-    PE32     PE32   Align=4K $(INF_OUTPUT)/$(MODULE_NAME).efi
+  FILE SEC = $(NAMED_GUID) RELOCS_STRIPPED FIXED {
+    PE32     PE32    Align = Auto     $(INF_OUTPUT)/$(MODULE_NAME).efi
     UI       STRING ="$(MODULE_NAME)" Optional
     VERSION  STRING ="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
 
 [Rule.Common.PEI_CORE]
-  FILE PEI_CORE = $(NAMED_GUID) {
-    PE32     PE32   Align=4K    $(INF_OUTPUT)/$(MODULE_NAME).efi
-    UI       STRING ="$(MODULE_NAME)" Optional
-    VERSION  STRING ="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
+  FILE PEI_CORE = $(NAMED_GUID) FIXED {
+    PE32     PE32    Align = Auto     $(INF_OUTPUT)/$(MODULE_NAME).efi
+    UI     STRING ="$(MODULE_NAME)" Optional
+    VERSION  STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
 
 [Rule.Common.PEIM]
-  FILE PEIM = $(NAMED_GUID) {
-     PEI_DEPEX PEI_DEPEX Optional        $(INF_OUTPUT)/$(MODULE_NAME).depex
-     PE32     PE32   Align=4K         $(INF_OUTPUT)/$(MODULE_NAME).efi
+  FILE PEIM = $(NAMED_GUID) FIXED {
+     PEI_DEPEX PEI_DEPEX Optional     $(INF_OUTPUT)/$(MODULE_NAME).depex
+     PE32     PE32    Align = Auto    $(INF_OUTPUT)/$(MODULE_NAME).efi
      UI       STRING="$(MODULE_NAME)" Optional
      VERSION  STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
 
 [Rule.Common.DXE_CORE]
   FILE DXE_CORE = $(NAMED_GUID) {
-    PE32     PE32   Align=4K  $(INF_OUTPUT)/$(MODULE_NAME).efi
+    PE32     PE32    $(INF_OUTPUT)/$(MODULE_NAME).efi
     UI       STRING="$(MODULE_NAME)" Optional
     VERSION  STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
@@ -263,7 +331,7 @@ FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
 [Rule.Common.DXE_DRIVER]
   FILE DRIVER = $(NAMED_GUID) {
     DXE_DEPEX    DXE_DEPEX Optional      $(INF_OUTPUT)/$(MODULE_NAME).depex
-    PE32     PE32   Align=4K  $(INF_OUTPUT)/$(MODULE_NAME).efi
+    PE32     PE32    $(INF_OUTPUT)/$(MODULE_NAME).efi
     UI       STRING="$(MODULE_NAME)" Optional
     VERSION  STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
@@ -271,7 +339,7 @@ FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
 [Rule.Common.DXE_RUNTIME_DRIVER]
   FILE DRIVER = $(NAMED_GUID) {
     DXE_DEPEX    DXE_DEPEX Optional      $(INF_OUTPUT)/$(MODULE_NAME).depex
-    PE32     PE32   Align = 4K    $(INF_OUTPUT)/$(MODULE_NAME).efi
+    PE32     PE32    $(INF_OUTPUT)/$(MODULE_NAME).efi
     UI       STRING="$(MODULE_NAME)" Optional
     VERSION  STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
@@ -279,7 +347,7 @@ FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
 [Rule.Common.UEFI_DRIVER]
   FILE DRIVER = $(NAMED_GUID) {
     DXE_DEPEX    DXE_DEPEX Optional      $(INF_OUTPUT)/$(MODULE_NAME).depex
-    PE32     PE32  Align=4K  $(INF_OUTPUT)/$(MODULE_NAME).efi
+    PE32     PE32   $(INF_OUTPUT)/$(MODULE_NAME).efi
     UI       STRING="$(MODULE_NAME)" Optional
     VERSION  STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
@@ -287,21 +355,21 @@ FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
 [Rule.Common.UEFI_DRIVER.BINARY]
   FILE DRIVER = $(NAMED_GUID) {
     DXE_DEPEX DXE_DEPEX Optional      |.depex
-    PE32      PE32   Align=4K   |.efi
+    PE32      PE32                    |.efi
     UI        STRING="$(MODULE_NAME)" Optional
     VERSION   STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
 
 [Rule.Common.UEFI_APPLICATION]
   FILE APPLICATION = $(NAMED_GUID) {
-    PE32     PE32   Align=4K   $(INF_OUTPUT)/$(MODULE_NAME).efi
+    PE32     PE32    $(INF_OUTPUT)/$(MODULE_NAME).efi
     UI       STRING="$(MODULE_NAME)" Optional
     VERSION  STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
 
 [Rule.Common.UEFI_APPLICATION.BINARY]
   FILE APPLICATION = $(NAMED_GUID) {
-    PE32      PE32  Align=4K  |.efi
+    PE32      PE32                    |.efi
     UI        STRING="$(MODULE_NAME)" Optional
     VERSION   STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
   }
@@ -310,4 +378,5 @@ FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
   FILE FREEFORM = $(NAMED_GUID) {
     RAW ACPI               |.acpi
     RAW ASL                |.aml
+    UI        STRING="$(MODULE_NAME)" Optional
   }

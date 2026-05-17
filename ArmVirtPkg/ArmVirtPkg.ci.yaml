@@ -24,7 +24,6 @@
         ],
         ## Both file path and directory path are accepted.
         "IgnoreFiles": [
-            "Library/PlatformBootManagerLib/PlatformBm.c"
         ]
     },
     ## options defined .pytool/Plugin/CompilerPlugin
@@ -56,6 +55,7 @@
             "ArmPlatformPkg/ArmPlatformPkg.dec",
             "PcAtChipsetPkg/PcAtChipsetPkg.dec",
             "SecurityPkg/SecurityPkg.dec",
+            "UefiCpuPkg/UefiCpuPkg.dec",
             "ShellPkg/ShellPkg.dec"  #Is this ok?
         ],
         # For host based unit tests
@@ -125,5 +125,13 @@
         ],           # words to extend to the dictionary for this package
         "IgnoreStandardPaths": [],   # Standard Plugin defined paths that should be ignore
         "AdditionalIncludePaths": [] # Additional paths to spell check (wildcards supported)
+    },
+
+    "DebugMacroCheck": {
+      "StringSubstitutions": {
+          # DynamicTablesPkg/Include/ConfigurationManagerObject.h
+          # Reason: Expansion of macro that contains a print specifier.
+          "FMT_CM_OBJECT_ID": "0x%lx"
+      }
     }
 }

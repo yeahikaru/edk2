@@ -7,8 +7,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#ifndef _PEI_VARIABLE_H_
-#define _PEI_VARIABLE_H_
+#pragma once
 
 #include <PiPei.h>
 #include <Ppi/ReadOnlyVariable2.h>
@@ -22,11 +21,14 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <Library/PeiServicesLib.h>
 #include <Library/SafeIntLib.h>
 #include <Library/VariableFlashInfoLib.h>
+#include <Library/MmUnblockMemoryLib.h>
+#include <Library/MemoryAllocationLib.h>
 
 #include <Guid/VariableFormat.h>
 #include <Guid/VariableIndexTable.h>
 #include <Guid/SystemNvDataGuid.h>
 #include <Guid/FaultTolerantWrite.h>
+#include <Guid/VariableRuntimeCacheInfo.h>
 
 typedef enum {
   VariableStoreTypeHob,
@@ -143,5 +145,3 @@ PeiGetNextVariableName (
   IN OUT CHAR16                              *VariableName,
   IN OUT EFI_GUID                            *VariableGuid
   );
-
-#endif

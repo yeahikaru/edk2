@@ -54,7 +54,29 @@
       DevicePathLib|MdePkg/Library/UefiDevicePathLib/UefiDevicePathLib.inf
   }
 
+  MdeModulePkg/Library/ImagePropertiesRecordLib/UnitTest/ImagePropertiesRecordLibUnitTestHost.inf {
+    <LibraryClasses>
+      ImagePropertiesRecordLib|MdeModulePkg/Library/ImagePropertiesRecordLib/ImagePropertiesRecordLib.inf
+      PeCoffGetEntryPointLib|MdePkg/Library/BasePeCoffGetEntryPointLib/BasePeCoffGetEntryPointLib.inf
+  }
+
+  MdeModulePkg/Bus/Pci/NvmExpressDxe/UnitTest/MediaSanitizeUnitTestHost.inf {
+    <LibraryClasses>
+      NvmExpressDxe|MdeModulePkg/Bus/Pci/NvmExpressDxe/NvmExpressDxe.inf
+  }
+
+  MdeModulePkg/Library/DxeReportStatusCodeLib/GoogleTest/DxeReportStatusCodeLibGoogleTest.inf {
+    <LibraryClasses>
+      ReportStatusCodeLib|MdeModulePkg/Library/DxeReportStatusCodeLib/DxeReportStatusCodeLib.inf
+      DevicePathLib|MdePkg/Test/Mock/Library/GoogleTest/MockDevicePathLib/MockDevicePathLib.inf
+      UefiBootServicesTableLib|MdePkg/Test/Mock/Library/GoogleTest/MockUefiBootServicesTableLib/MockUefiBootServicesTableLib.inf
+  }
+
   #
   # Build HOST_APPLICATION Libraries
   #
+  MdeModulePkg/Test/Mock/Library/GoogleTest/MockHiiLib/MockHiiLib.inf
   MdeModulePkg/Test/Mock/Library/GoogleTest/MockPciHostBridgeLib/MockPciHostBridgeLib.inf
+  MdeModulePkg/Test/Mock/Library/GoogleTest/MockVariablePolicyHelperLib/MockVariablePolicyHelperLib.inf
+  MdeModulePkg/Test/Mock/Library/GoogleTest/MockSecurityManagementLib/MockSecurityManagementLib.inf
+  MdeModulePkg/Test/Mock/Library/GoogleTest/MockTpmMeasurementLib/MockTpmMeasurementLib.inf

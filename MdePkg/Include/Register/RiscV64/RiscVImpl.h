@@ -7,8 +7,7 @@
 
 **/
 
-#ifndef RISCV_IMPL_H_
-#define RISCV_IMPL_H_
+#pragma once
 
 #include <Register/RiscV64/RiscVEncoding.h>
 
@@ -20,6 +19,3 @@
   Name:
 
 #define ASM_FUNC(Name)  _ASM_FUNC(ASM_PFX(Name), .text. ## Name)
-#define RISCV_TIMER_COMPARE_BITS  32
-
-#endif

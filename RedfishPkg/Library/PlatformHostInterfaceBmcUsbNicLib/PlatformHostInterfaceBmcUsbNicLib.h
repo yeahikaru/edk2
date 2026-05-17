@@ -8,8 +8,7 @@
 
 **/
 
-#ifndef PLATFORM_HOST_INTERFACE_BMC_USB_NIC_LIB_H_
-#define PLATFORM_HOST_INTERFACE_BMC_USB_NIC_LIB_H_
+#pragma once
 
 #include <Uefi.h>
 #include <IndustryStandard/Ipmi.h>
@@ -21,7 +20,6 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
 #include <Library/DevicePathLib.h>
-#include <Library/IpmiLib.h>
 #include <Library/IpmiCommandLib.h>
 #include <Library/RedfishHostInterfaceLib.h>
 #include <Library/MemoryAllocationLib.h>
@@ -29,6 +27,7 @@
 #include <Library/DevicePathLib.h>
 #include <Library/RedfishDebugLib.h>
 
+#include <Protocol/EdkIIRedfishCredential2.h>
 #include <Protocol/SimpleNetwork.h>
 #include <Protocol/UsbIo.h>
 
@@ -81,4 +80,3 @@ typedef struct {
   EFI_MAC_ADDRESS    MacAddress;              ///< IPMI LAN Channel MAC address.
   UINT8              MacAddressSize;          ///< MAC address size;
 } BMC_IPMI_LAN_CHANNEL_INFO;
-#endif

@@ -12,8 +12,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#ifndef __BASE_H__
-#define __BASE_H__
+#pragma once
 
 //
 // Include processor specific binding
@@ -59,7 +58,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 /// up to the compiler to remove any code past that point.
 ///
 #define UNREACHABLE()  __builtin_unreachable ()
-  #elif defined (__has_feature)
+  #elif defined (__has_builtin) && defined (__has_feature)
     #if __has_builtin (__builtin_unreachable)
 ///
 /// Signal compilers and analyzers that this call is not reachable.  It is
@@ -578,7 +577,7 @@ struct _LIST_ENTRY {
 **/
 #define _INT_SIZE_OF(n)  ((sizeof (n) + sizeof (UINTN) - 1) &~(sizeof (UINTN) - 1))
 
-#if defined (_M_ARM) || defined (_M_ARM64)
+#if defined (_M_ARM64)
 //
 // MSFT ARM variable argument list support.
 //
@@ -800,12 +799,12 @@ typedef UINTN *BASE_LIST;
   @param  Message     Raised compiler diagnostic message when expression is false.
 
 **/
-#ifdef MDE_CPU_EBC
-#define STATIC_ASSERT(Expression, Message)
-#elif defined (_MSC_EXTENSIONS) || defined (__cplusplus)
+#if defined (__cplusplus)
 #define STATIC_ASSERT  static_assert
-#else
+#elif defined (__GNUC__) || defined (__clang__)
 #define STATIC_ASSERT  _Static_assert
+#elif defined (_MSC_EXTENSIONS)
+#define STATIC_ASSERT  static_assert
 #endif
 
 //
@@ -888,7 +887,7 @@ STATIC_ASSERT (ALIGNOF (__VERIFY_INT32_ENUM_SIZE) == sizeof (__VERIFY_INT32_ENUM
   @return  A pointer to the structure from one of it's elements.
 
 **/
-#define BASE_CR(Record, TYPE, Field)  ((TYPE *) ((CHAR8 *) (Record) - OFFSET_OF (TYPE, Field)))
+#define BASE_CR(Record, TYPE, Field)  ((TYPE *) (VOID *) ((CHAR8 *) (Record) - OFFSET_OF (TYPE, Field)))
 
 /**
   Checks whether a value is a power of two.
@@ -1058,7 +1057,7 @@ typedef UINTN RETURN_STATUS;
   @retval FALSE         The high bit of StatusCode is clear.
 
 **/
-#define RETURN_ERROR(StatusCode)  (((INTN)(RETURN_STATUS)(StatusCode)) < 0)
+#define RETURN_ERROR(StatusCode)  (((RETURN_STATUS)(StatusCode)) >= MAX_BIT)
 
 ///
 /// The operation completed successfully.
@@ -1230,6 +1229,11 @@ typedef UINTN RETURN_STATUS;
 #define RETURN_COMPROMISED_DATA  ENCODE_ERROR (33)
 
 ///
+/// There is an address conflict address allocation.
+///
+#define RETURN_IP_ADDRESS_CONFLICT  ENCODE_ERROR (34)
+
+///
 /// A HTTP error occurred during the network operation.
 ///
 #define RETURN_HTTP_ERROR  ENCODE_ERROR (35)
@@ -1267,6 +1271,11 @@ typedef UINTN RETURN_STATUS;
 /// The resulting buffer contains UEFI-compliant file system.
 ///
 #define RETURN_WARN_FILE_SYSTEM  ENCODE_WARNING (6)
+
+///
+/// The operation will be processed across a system reset.
+///
+#define RETURN_WARN_RESET_REQUIRED  ENCODE_WARNING (7)
 
 /**
   Returns a 16-bit signature built from 2 ASCII characters.
@@ -1381,5 +1390,3 @@ _ReturnAddress (
 
 **/
 #define ARRAY_SIZE(Array)  (sizeof (Array) / sizeof ((Array)[0]))
-
-#endif

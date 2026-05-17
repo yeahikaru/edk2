@@ -7,8 +7,7 @@
 
 **/
 
-#ifndef _SMM_CORE_H_
-#define _SMM_CORE_H_
+#pragma once
 
 #include <PiSmm.h>
 
@@ -93,6 +92,7 @@ typedef struct {
   SMI_ENTRY                       *SmiEntry;
   VOID                            *Context;    // for profile
   UINTN                           ContextSize; // for profile
+  BOOLEAN                         ToRemove;    // To remove this SMI_HANDLER later
 } SMI_HANDLER;
 
 //
@@ -1350,5 +1350,3 @@ VOID
 SmmEntryPointMemoryManagementHook (
   VOID
   );
-
-#endif

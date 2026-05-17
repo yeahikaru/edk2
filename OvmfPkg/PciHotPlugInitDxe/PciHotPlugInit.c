@@ -589,7 +589,7 @@ GetResourcePadding (
     return EFI_INVALID_PARAMETER;
   }
 
-  DefaultIo       = TRUE;
+  DefaultIo       = FALSE;
   DefaultMmio     = TRUE;
   DefaultPrefMmio = TRUE;
 
@@ -741,7 +741,7 @@ GetResourcePadding (
     //
     // Request defaults.
     //
-    SetIoPadding (--FirstResource, (UINTN)HighBitSetRoundUp64 (512));
+    SetIoPadding (--FirstResource, (UINTN)HighBitSetRoundUp64 (0x1000));
   }
 
   if (DefaultMmio) {
@@ -802,7 +802,7 @@ GetResourcePadding (
   @param[in] ImageHandle  Image handle of this driver.
   @param[in] SystemTable  Pointer to SystemTable.
 
-  @retval EFI_SUCESS       Driver has loaded successfully.
+  @retval EFI_SUCCESS      Driver has loaded successfully.
   @return                  Error codes from lower level functions.
 
 **/

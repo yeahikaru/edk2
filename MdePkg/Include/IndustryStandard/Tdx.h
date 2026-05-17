@@ -9,8 +9,7 @@
 
 **/
 
-#ifndef MDE_PKG_TDX_H_
-#define MDE_PKG_TDX_H_
+#pragma once
 
 #define EXIT_REASON_EXTERNAL_INTERRUPT  1
 #define EXIT_REASON_TRIPLE_FAULT        2
@@ -103,6 +102,8 @@
 #define TDVMCALL_REPORT_FATAL_ERR    0x10003
 #define TDVMCALL_SETUP_EVENT_NOTIFY  0x10004
 
+#define TDVMCALL_STATUS_RETRY  0x1
+
 #pragma pack(1)
 typedef struct {
   UINT64    Data[6];
@@ -111,8 +112,8 @@ typedef struct {
 typedef struct {
   UINT64    Gpaw;
   UINT64    Attributes;
-  UINT32    MaxVcpus;
   UINT32    NumVcpus;
+  UINT32    MaxVcpus;
   UINT64    Resv[3];
 } TDCALL_INFO_RETURN_DATA;
 
@@ -199,5 +200,3 @@ typedef struct {
 } TDREPORT_STRUCT;
 
 #pragma pack()
-
-#endif

@@ -7,19 +7,25 @@
 
 **/
 
-#ifndef CPU_DXE_H_
-#define CPU_DXE_H_
+#pragma once
 
 #include <PiDxe.h>
 
+#include <Guid/RiscVSecHobData.h>
 #include <Protocol/Cpu.h>
 #include <Protocol/RiscVBootProtocol.h>
 #include <Library/BaseRiscVSbiLib.h>
+#include <Library/BaseRiscVMmuLib.h>
+#include <Library/TimerLib.h>
 #include <Library/BaseLib.h>
+#include <Library/CacheMaintenanceLib.h>
 #include <Library/CpuExceptionHandlerLib.h>
+#include <Library/CpuLib.h>
 #include <Library/DebugLib.h>
+#include <Library/HobLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiDriverEntryPoint.h>
+#include <Register/RiscV64/RiscVEncoding.h>
 
 /**
   Flush CPU data cache. If the instruction cache is fully coherent
@@ -172,7 +178,7 @@ CpuGetTimerValue (
   );
 
 /**
-  Set memory cacheability attributes for given range of memeory.
+  Set memory cacheability attributes for given range of memory.
 
   @param  This                   Protocol instance structure
   @param  BaseAddress            Specifies the start address of the
@@ -195,5 +201,3 @@ CpuSetMemoryAttributes (
   IN UINT64                 Length,
   IN UINT64                 Attributes
   );
-
-#endif

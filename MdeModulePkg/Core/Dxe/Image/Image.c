@@ -77,12 +77,12 @@ typedef struct {
 } MACHINE_TYPE_INFO;
 
 GLOBAL_REMOVE_IF_UNREFERENCED MACHINE_TYPE_INFO  mMachineTypeInfo[] = {
-  { EFI_IMAGE_MACHINE_IA32,           L"IA32"    },
-  { EFI_IMAGE_MACHINE_IA64,           L"IA64"    },
-  { EFI_IMAGE_MACHINE_X64,            L"X64"     },
-  { EFI_IMAGE_MACHINE_ARMTHUMB_MIXED, L"ARM"     },
-  { EFI_IMAGE_MACHINE_AARCH64,        L"AARCH64" },
-  { EFI_IMAGE_MACHINE_RISCV64,        L"RISCV64" },
+  { EFI_IMAGE_MACHINE_IA32,        L"IA32"        },
+  { EFI_IMAGE_MACHINE_IA64,        L"IA64"        },
+  { EFI_IMAGE_MACHINE_X64,         L"X64"         },
+  { EFI_IMAGE_MACHINE_AARCH64,     L"AARCH64"     },
+  { EFI_IMAGE_MACHINE_RISCV64,     L"RISCV64"     },
+  { EFI_IMAGE_MACHINE_LOONGARCH64, L"LOONGARCH64" },
 };
 
 UINT16  mDxeCoreImageMachineType = 0;
@@ -161,7 +161,10 @@ PeCoffEmuProtocolNotify (
     }
 
     Entry = AllocateZeroPool (sizeof (*Entry));
-    ASSERT (Entry != NULL);
+    if (Entry == NULL) {
+      ASSERT (Entry != NULL);
+      break;
+    }
 
     Entry->Emulator    = Emulator;
     Entry->MachineType = Entry->Emulator->MachineType;
@@ -200,7 +203,9 @@ CoreInitializeImageServices (
       //
       // Find Dxe Core HOB
       //
-      break;
+      if (CompareGuid (&DxeCoreHob.MemoryAllocationModule->ModuleName, &gEfiCallerIdGuid)) {
+        break;
+      }
     }
 
     DxeCoreHob.Raw = GET_NEXT_HOB (DxeCoreHob);
@@ -218,13 +223,12 @@ CoreInitializeImageServices (
   //
   Image = &mCorePrivateImage;
 
-  Image->EntryPoint       = (EFI_IMAGE_ENTRY_POINT)(UINTN)DxeCoreEntryPoint;
-  Image->ImageBasePage    = DxeCoreImageBaseAddress;
-  Image->NumberOfPages    = (UINTN)(EFI_SIZE_TO_PAGES ((UINTN)(DxeCoreImageLength)));
-  Image->Tpl              = gEfiCurrentTpl;
-  Image->Info.SystemTable = gDxeCoreST;
-  Image->Info.ImageBase   = (VOID *)(UINTN)DxeCoreImageBaseAddress;
-  Image->Info.ImageSize   = DxeCoreImageLength;
+  Image->EntryPoint     = (EFI_IMAGE_ENTRY_POINT)(UINTN)DxeCoreEntryPoint;
+  Image->ImageBasePage  = DxeCoreImageBaseAddress;
+  Image->NumberOfPages  = (UINTN)(EFI_SIZE_TO_PAGES ((UINTN)(DxeCoreImageLength)));
+  Image->Tpl            = gEfiCurrentTpl;
+  Image->Info.ImageBase = (VOID *)(UINTN)DxeCoreImageBaseAddress;
+  Image->Info.ImageSize = DxeCoreImageLength;
 
   //
   // Install the protocol interfaces for this image
@@ -584,6 +588,9 @@ CoreLoadPeImage (
   EFI_STATUS  Status;
   BOOLEAN     DstBufAlocated;
   UINTN       Size;
+  UINTN       Index;
+  UINTN       StartIndex;
+  CHAR8       EfiFileName[512];
 
   ZeroMem (&Image->ImageContext, sizeof (Image->ImageContext));
 
@@ -625,7 +632,6 @@ CoreLoadPeImage (
       Image->ImageContext.ImageDataMemoryType = EfiBootServicesData;
       break;
     case EFI_IMAGE_SUBSYSTEM_EFI_RUNTIME_DRIVER:
-    case EFI_IMAGE_SUBSYSTEM_SAL_RUNTIME_DRIVER:
       Image->ImageContext.ImageCodeMemoryType = EfiRuntimeServicesCode;
       Image->ImageContext.ImageDataMemoryType = EfiRuntimeServicesData;
       break;
@@ -680,7 +686,9 @@ CoreLoadPeImage (
                    );
       }
     } else {
-      if ((Image->ImageContext.ImageAddress >= 0x100000) || Image->ImageContext.RelocationsStripped) {
+      if ((PcdGetBool (PcdImageLargeAddressLoad) && ((Image->ImageContext.ImageAddress) >= 0x100000)) ||
+          Image->ImageContext.RelocationsStripped)
+      {
         Status = CoreAllocatePages (
                    AllocateAddress,
                    (EFI_MEMORY_TYPE)(Image->ImageContext.ImageCodeMemoryType),
@@ -734,7 +742,7 @@ CoreLoadPeImage (
   if (!Image->ImageContext.IsTeImage) {
     Image->ImageContext.ImageAddress =
       (Image->ImageContext.ImageAddress + Image->ImageContext.SectionAlignment - 1) &
-      ~((UINTN)Image->ImageContext.SectionAlignment - 1);
+      ~((EFI_PHYSICAL_ADDRESS)Image->ImageContext.SectionAlignment - 1);
   }
 
   //
@@ -821,12 +829,6 @@ CoreLoadPeImage (
   // Print the load address and the PDB file name if it is available
   //
 
-  DEBUG_CODE_BEGIN ();
-
-  UINTN  Index;
-  UINTN  StartIndex;
-  CHAR8  EfiFileName[256];
-
   DEBUG ((
     DEBUG_INFO | DEBUG_LOAD,
     "Loading driver at 0x%11p EntryPoint=0x%11p ",
@@ -874,8 +876,6 @@ CoreLoadPeImage (
   }
 
   DEBUG ((DEBUG_INFO | DEBUG_LOAD, "\n"));
-
-  DEBUG_CODE_END ();
 
   return EFI_SUCCESS;
 
@@ -1258,6 +1258,11 @@ CoreLoadImageCommon (
         // LoadFile () may cause the device path of the Handle be updated.
         //
         OriginalFilePath = AppendDevicePath (DevicePathFromHandle (DeviceHandle), Node);
+        if (OriginalFilePath == NULL) {
+          Image  = NULL;
+          Status = EFI_OUT_OF_RESOURCES;
+          goto Done;
+        }
       }
     }
   }
@@ -1723,7 +1728,9 @@ CoreStartImage (
   // Image has completed.  Verify the tpl is the same
   //
   ASSERT (Image->Tpl == gEfiCurrentTpl);
-  CoreRestoreTpl (Image->Tpl);
+  if (Image->Tpl != gEfiCurrentTpl) {
+    CoreRestoreTpl (Image->Tpl);
+  }
 
   CoreFreePool (Image->JumpBuffer);
 

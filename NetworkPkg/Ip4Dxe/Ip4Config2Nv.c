@@ -67,47 +67,11 @@ Ip4Config2StrToIp (
   OUT EFI_IPv4_ADDRESS  *Ip
   )
 {
-  UINTN  Index;
-  UINTN  Number;
+  EFI_STATUS  Status;
+  CHAR16      *EndPointer;
 
-  Index = 0;
-
-  while (*Str != L'\0') {
-    if (Index > 3) {
-      return EFI_INVALID_PARAMETER;
-    }
-
-    Number = 0;
-    while ((*Str >= L'0') && (*Str <= L'9')) {
-      Number = Number * 10 + (*Str - L'0');
-      Str++;
-    }
-
-    if (Number > 0xFF) {
-      return EFI_INVALID_PARAMETER;
-    }
-
-    Ip->Addr[Index] = (UINT8)Number;
-
-    if ((*Str != L'\0') && (*Str != L'.')) {
-      //
-      // The current character should be either the NULL terminator or
-      // the dot delimiter.
-      //
-      return EFI_INVALID_PARAMETER;
-    }
-
-    if (*Str == L'.') {
-      //
-      // Skip the delimiter.
-      //
-      Str++;
-    }
-
-    Index++;
-  }
-
-  if (Index != 4) {
+  Status = StrToIpv4Address (Str, &EndPointer, (IPv4_ADDRESS *)Ip, NULL);
+  if (EFI_ERROR (Status) || (*EndPointer != L'\0')) {
     return EFI_INVALID_PARAMETER;
   }
 
@@ -586,7 +550,32 @@ Ip4Config2ConvertIfrNvDataToConfigNvData (
   }
 
   if (IfrFormNvData->Configure != TRUE) {
-    return EFI_SUCCESS;
+    if (Ip4NvData->DnsAddress != NULL) {
+      FreePool (Ip4NvData->DnsAddress);
+      Ip4NvData->DnsAddress      = NULL;
+      Ip4NvData->DnsAddressCount = 0;
+    }
+
+    if (Ip4NvData->GatewayAddress != NULL) {
+      FreePool (Ip4NvData->GatewayAddress);
+      Ip4NvData->GatewayAddress      = NULL;
+      Ip4NvData->GatewayAddressCount = 0;
+    }
+
+    if (Ip4NvData->ManualAddress != NULL) {
+      FreePool (Ip4NvData->ManualAddress);
+      Ip4NvData->ManualAddress      = NULL;
+      Ip4NvData->ManualAddressCount = 0;
+    }
+
+    Ip4NvData->Policy = Ip4Config2PolicyDhcp;
+    Status            = Ip4Cfg2->SetData (
+                                   Ip4Cfg2,
+                                   Ip4Config2DataTypePolicy,
+                                   sizeof (EFI_IP4_CONFIG2_POLICY),
+                                   &Ip4NvData->Policy
+                                   );
+    return Status;
   }
 
   if (IfrFormNvData->DhcpEnable == TRUE) {

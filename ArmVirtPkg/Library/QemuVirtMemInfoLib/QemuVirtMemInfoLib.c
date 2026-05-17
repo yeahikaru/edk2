@@ -27,7 +27,7 @@
 #define MACH_VIRT_PERIPH_SIZE  SIZE_128MB
 
 /**
-  Default library constructur that obtains the memory size from a PCD.
+  Default library constructor that obtains the memory size from a PCD.
 
   @return  Always returns RETURN_SUCCESS
 
@@ -115,7 +115,7 @@ ArmVirtGetMemoryMap (
   VirtualMemoryTable[2].PhysicalBase = PcdGet64 (PcdFvBaseAddress);
   VirtualMemoryTable[2].VirtualBase  = VirtualMemoryTable[2].PhysicalBase;
   VirtualMemoryTable[2].Length       = FixedPcdGet32 (PcdFvSize);
-  VirtualMemoryTable[2].Attributes   = ARM_MEMORY_REGION_ATTRIBUTE_WRITE_BACK;
+  VirtualMemoryTable[2].Attributes   = ARM_MEMORY_REGION_ATTRIBUTE_WRITE_BACK_RO;
 
   // End of Table
   ZeroMem (&VirtualMemoryTable[3], sizeof (ARM_MEMORY_REGION_DESCRIPTOR));

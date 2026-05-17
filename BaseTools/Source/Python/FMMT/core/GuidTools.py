@@ -15,8 +15,9 @@ from FirmwareStorageFormat.Common import *
 from utils.FmmtLogger import FmmtLogger as logger
 import subprocess
 
-def ExecuteCommand(cmd: list) -> None:
-    subprocess.run(cmd,stdout=subprocess.DEVNULL)
+def ExecuteCommand(cmd_list: list) -> None:
+    cmd = ' '.join(cmd_list)
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, shell=True)
 
 class GUIDTool:
     def __init__(self, guid: str, short_name: str, command: str) -> None:
@@ -110,7 +111,7 @@ class GUIDTools:
         if os.environ['FmmtConfPath']:
             self.tooldef_file = os.path.join(os.environ['FmmtConfPath'], 'FmmtConf.ini')
         else:
-            PathList = os.environ['PATH']
+            PathList = os.environ['PATH'].split(os.pathsep)
             for CurrentPath in PathList:
                 if os.path.exists(os.path.join(CurrentPath, 'FmmtConf.ini')):
                     self.tooldef_file = os.path.join(CurrentPath, 'FmmtConf.ini')
@@ -176,4 +177,3 @@ class GUIDTools:
             raise Exception("Process Failed: is not defined!")
 
 guidtools = GUIDTools()
-

@@ -21,7 +21,7 @@
 #
 # The following information is for reference only and not required by the build tools.
 #
-#  VALID_ARCHITECTURES           = ARM AARCH64
+#  VALID_ARCHITECTURES           = AARCH64
 #
 
 [Sources]
@@ -52,12 +52,8 @@
   UefiLib
   UefiRuntimeServicesTableLib
 
-[FeaturePcd]
-  gEfiMdePkgTokenSpaceGuid.PcdUgaConsumeSupport
-
 [FixedPcd]
   gArmTokenSpaceGuid.PcdUefiShellDefaultBootEnable
-  gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString
   gEfiMdePkgTokenSpaceGuid.PcdUartDefaultBaudRate
   gEfiMdePkgTokenSpaceGuid.PcdUartDefaultDataBits
@@ -68,6 +64,7 @@
 [Pcd]
   gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut
   gEfiMdeModulePkgTokenSpaceGuid.PcdBootDiscoveryPolicy
+  gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable
 
 [Guids]
   gBootDiscoveryPolicyMgrFormsetGuid

@@ -1,10 +1,10 @@
 ;; @file
 ;  Provide FSP API entry points.
 ;
-; Copyright (c) 2022, Intel Corporation. All rights reserved.<BR>
+; Copyright (c) 2022 - 2025, Intel Corporation. All rights reserved.<BR>
 ; SPDX-License-Identifier: BSD-2-Clause-Patent
 ;;
-
+    DEFAULT REL
     SECTION .text
 
 %include    "PushPopRegsNasm.inc"
@@ -13,6 +13,7 @@
 ; Following are fixed PCDs
 ;
 extern   ASM_PFX(PcdGet8 (PcdFspHeapSizePercentage))
+extern   ASM_PFX(FeaturePcdGet (PcdFspSaveRestorePageTableEnable))
 
 struc FSPM_UPD_COMMON_FSP24
     ; FSP_UPD_HEADER {
@@ -109,6 +110,71 @@ ASM_PFX(FspApiCommonContinue):
   pushfq
   cli
   PUSHA_64
+
+  ;
+  ; Allocate 4x8 bytes on the stack.
+  ;
+  sub     rsp, 32
+  lea     rdx, [ASM_PFX(FeaturePcdGet (PcdFspSaveRestorePageTableEnable))]
+  mov     dl, byte [rdx]
+  cmp     dl, 0
+  jz      SkipPagetableSave
+
+  add     rsp, 32
+  ; Save EFER MSR
+  push   rcx
+  push   rax
+  mov    rcx, 0xC0000080
+  rdmsr
+  shl    rdx, 0x20
+  or     rdx, rax
+  pop    rax
+  pop    rcx
+  push   rdx
+
+  ; Save CR registers
+  mov    rdx, cr4
+  push   rdx
+  mov    rdx, cr3
+  push   rdx
+  mov    rdx, cr0
+  push   rdx
+SkipPagetableSave:
+
+  ; Enable FSGSBASE instructions via CR4.FSGSBASE (bit 16)
+  mov     rbx, cr4           ; Save original CR4 in rbx
+  mov     rdx, rbx
+  bts     rdx, 16            ; Set CR4.FSGSBASE
+  mov     cr4, rdx
+
+  ; Save GsBase
+  rdgsbase rdx
+  push    rdx
+
+  ; Save FsBase
+  rdfsbase rdx
+  push    rdx
+
+  ; Restore original CR4
+  mov     cr4, rbx
+
+  ; Save Segment registers
+  mov     rdx, ss
+  push    rdx
+  mov     rdx, gs
+  push    rdx
+  mov     rdx, fs
+  push    rdx
+  mov     rdx, es
+  push    rdx
+  mov     rdx, ds
+  push    rdx
+  mov     rdx, cs
+  push    rdx
+
+  ; Reserve 16 bytes for GDT save/restore
+  sub     rsp, 16
+  sgdt    [rsp]
 
   ; Reserve 16 bytes for IDT save/restore
   sub     rsp, 16

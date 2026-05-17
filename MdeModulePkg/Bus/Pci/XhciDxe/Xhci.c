@@ -1,7 +1,8 @@
 /** @file
   The XHCI controller driver.
 
-Copyright (c) 2011 - 2022, Intel Corporation. All rights reserved.<BR>
+(C) Copyright 2023 Hewlett Packard Enterprise Development LP<BR>
+Copyright (c) 2011 - 2023, Intel Corporation. All rights reserved.<BR>
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -84,6 +85,11 @@ EFI_USB2_HC_PROTOCOL  gXhciUsb2HcTemplate = {
   0x3,
   0x0
 };
+
+static UINT64   mXhciPerformanceCounterStartValue;
+static UINT64   mXhciPerformanceCounterEndValue;
+static UINT64   mXhciPerformanceCounterFrequency;
+static BOOLEAN  mXhciPerformanceCounterValuesCached = FALSE;
 
 /**
   Retrieves the capability of root hub ports.
@@ -819,7 +825,10 @@ XhcTransfer (
   *TransferResult = Urb->Result;
   *DataLength     = Urb->Completed;
 
-  if ((*TransferResult == EFI_USB_ERR_STALL) || (*TransferResult == EFI_USB_ERR_BABBLE)) {
+  //
+  // Based on XHCI spec 4.8.3, software should do the reset endpoint while USB Transaction occur.
+  //
+  if ((*TransferResult == EFI_USB_ERR_STALL) || (*TransferResult == EFI_USB_ERR_BABBLE) || (*TransferResult == EDKII_USB_ERR_TRANSACTION)) {
     ASSERT (Status == EFI_DEVICE_ERROR);
     RecoveryStatus = XhcRecoverHaltedEndpoint (Xhc, Urb);
     if (EFI_ERROR (RecoveryStatus)) {
@@ -828,6 +837,10 @@ XhcTransfer (
   }
 
   Xhc->PciIo->Flush (Xhc->PciIo);
+  //
+  // Do not free URB data, since it is passed in as an external argument
+  // and allocated and managed by the caller.
+  //
   XhcFreeUrb (Xhc, Urb);
   return Status;
 }
@@ -1218,8 +1231,9 @@ ON_EXIT:
                                 sending or receiving.
   @param  DataBuffersNumber     Number of data buffers prepared for the transfer.
   @param  Data                  Array of pointers to the buffers of data to transmit
-                                from or receive into.
-  @param  DataLength            The lenght of the data buffer.
+                                from or receive into. The caller is responsible for freeing
+                                the buffers after the transfers are completed.
+  @param  DataLength            The length of the data buffer.
   @param  DataToggle            On input, the initial data toggle for the transfer;
                                 On output, it is updated to to next data toggle to
                                 use of the subsequent bulk transfer.
@@ -2068,7 +2082,12 @@ XhcDriverBindingStart (
 
   XhcSetBiosOwnership (Xhc);
 
-  XhcResetHC (Xhc, XHC_RESET_TIMEOUT);
+  Status = XhcResetHC (Xhc, XHC_RESET_TIMEOUT);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "%a: failed to reset HC\n", __func__));
+    goto FREE_POOL;
+  }
+
   ASSERT (XhcIsHalt (Xhc));
 
   //
@@ -2293,4 +2312,115 @@ XhcDriverBindingStop (
   FreePool (Xhc);
 
   return EFI_SUCCESS;
+}
+
+/**
+  Converts a time in nanoseconds to a performance counter tick count.
+
+  @param  Time  The time in nanoseconds to be converted to performance counter ticks.
+  @return Time in nanoseconds converted to ticks.
+**/
+UINT64
+XhcConvertTimeToTicks (
+  IN UINT64  Time
+  )
+{
+  UINT64  Ticks;
+  UINT64  Remainder;
+  UINT64  Divisor;
+  UINTN   Shift;
+
+  // Cache the return values to avoid repeated calls to GetPerformanceCounterProperties ()
+  if (!mXhciPerformanceCounterValuesCached) {
+    mXhciPerformanceCounterFrequency = GetPerformanceCounterProperties (
+                                         &mXhciPerformanceCounterStartValue,
+                                         &mXhciPerformanceCounterEndValue
+                                         );
+
+    mXhciPerformanceCounterValuesCached = TRUE;
+  }
+
+  // Prevent returning a tick value of 0, unless Time is already 0
+  if (0 == mXhciPerformanceCounterFrequency) {
+    return Time;
+  }
+
+  // Nanoseconds per second
+  Divisor = 1000000000;
+
+  //
+  //           Frequency
+  // Ticks = ------------- x Time
+  //         1,000,000,000
+  //
+  Ticks = MultU64x64 (
+            DivU64x64Remainder (
+              mXhciPerformanceCounterFrequency,
+              Divisor,
+              &Remainder
+              ),
+            Time
+            );
+
+  //
+  // Ensure (Remainder * Time) will not overflow 64-bit.
+  //
+  // HighBitSet64 (Remainder) + 1 + HighBitSet64 (Time) + 1 <= 64
+  //
+  Shift     = MAX (0, HighBitSet64 (Remainder) + HighBitSet64 (Time) - 62);
+  Remainder = RShiftU64 (Remainder, (UINTN)Shift);
+  Divisor   = RShiftU64 (Divisor, (UINTN)Shift);
+  Ticks    += DivU64x64Remainder (MultU64x64 (Remainder, Time), Divisor, NULL);
+
+  return Ticks;
+}
+
+/**
+  Computes and returns the elapsed ticks since PreviousTick. The
+  value of PreviousTick is overwritten with the current performance
+  counter value.
+
+  @param  PreviousTick    Pointer to PreviousTick count.
+  @return The elapsed ticks since PreviousCount. PreviousCount is
+          overwritten with the current performance counter value.
+**/
+UINT64
+XhcGetElapsedTicks (
+  IN OUT UINT64  *PreviousTick
+  )
+{
+  UINT64  CurrentTick;
+  UINT64  Delta;
+
+  CurrentTick = GetPerformanceCounter ();
+
+  //
+  // Determine if the counter is counting up or down
+  //
+  if (mXhciPerformanceCounterStartValue < mXhciPerformanceCounterEndValue) {
+    //
+    // Counter counts upwards, check for an overflow condition
+    //
+    if (*PreviousTick > CurrentTick) {
+      Delta = (CurrentTick - mXhciPerformanceCounterStartValue) + (mXhciPerformanceCounterEndValue - *PreviousTick);
+    } else {
+      Delta = CurrentTick - *PreviousTick;
+    }
+  } else {
+    //
+    // Counter counts downwards, check for an underflow condition
+    //
+    if (*PreviousTick < CurrentTick) {
+      Delta = (mXhciPerformanceCounterStartValue - CurrentTick) + (*PreviousTick - mXhciPerformanceCounterEndValue);
+    } else {
+      Delta = *PreviousTick - CurrentTick;
+    }
+  }
+
+  //
+  // Set PreviousTick to CurrentTick
+  //
+  *PreviousTick = CurrentTick;
+
+  return Delta;
 }

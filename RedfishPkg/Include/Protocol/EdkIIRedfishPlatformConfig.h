@@ -2,16 +2,22 @@
   This file defines the EDKII_REDFISH_PLATFORM_CONFIG_PROTOCOL interface.
 
   (C) Copyright 2021-2022 Hewlett Packard Enterprise Development LP<BR>
-  Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#ifndef EDKII_REDFISH_PLATFORM_CONFIG_H_
-#define EDKII_REDFISH_PLATFORM_CONFIG_H_
+#pragma once
 
 typedef struct _EDKII_REDFISH_PLATFORM_CONFIG_PROTOCOL EDKII_REDFISH_PLATFORM_CONFIG_PROTOCOL;
+
+//
+// Redfish Platform Config Protocol interface version.
+// On Version 1.1, we change EDKII_REDFISH_PLATFORM_CONFIG_SET_VALUE protocol interface
+// to use value reference instead of value structure of the parameter "Value".
+//
+#define REDFISH_PLATFORM_CONFIG_VERSION  0x00010001
 
 ///
 /// Definition of EDKII_REDFISH_TYPE_VALUE
@@ -158,7 +164,7 @@ EFI_STATUS
   @param[in]   Schema              The Redfish schema to query.
   @param[in]   Version             The Redfish version to query.
   @param[in]   ConfigureLang       The target value which match this configure Language.
-  @param[in]   Value               The value to set.
+  @param[in]   RedfishValue        Pointer to the Redfish value to set.
 
   @retval EFI_SUCCESS              Value is returned successfully.
   @retval Others                   Some error happened.
@@ -171,7 +177,7 @@ EFI_STATUS
   IN     CHAR8                                  *Schema,
   IN     CHAR8                                  *Version,
   IN     EFI_STRING                             ConfigureLang,
-  IN     EDKII_REDFISH_VALUE                    Value
+  IN     EDKII_REDFISH_VALUE                    *Value
   );
 
 /**
@@ -227,7 +233,7 @@ EFI_STATUS
 
   @param[in]   This                Pointer to EDKII_REDFISH_PLATFORM_CONFIG_PROTOCOL instance.
   @param[out]  SupportedSchema     The supported schema list which is separated by ';'.
-                                   For example: "x-uefi-redfish-Memory.v1_7_1;x-uefi-redfish-Boot.v1_0_1"
+                                   For example: "x-UEFI-redfish-Memory.v1_7_1;x-UEFI-redfish-Boot.v1_0_1"
                                    The SupportedSchema is allocated by the callee. It's caller's
                                    responsibility to free this buffer using FreePool().
 
@@ -253,5 +259,3 @@ struct _EDKII_REDFISH_PLATFORM_CONFIG_PROTOCOL {
 };
 
 extern EFI_GUID  gEdkIIRedfishPlatformConfigProtocolGuid;
-
-#endif

@@ -173,6 +173,10 @@ LongModeStart:
     lock xadd  dword [edi], ebx                 ; EBX = ApIndex++
     inc        ebx                              ; EBX is CpuNumber
 
+    ; If running under AMD SEV-SNP and starting with a known ApicId,
+    ; adjust EBX to be the actual CpuNumber
+    OneTimeCall SevSnpGetInitCpuNumber
+
     ; program stack
     mov        edi, esi
     add        edi, MP_CPU_EXCHANGE_INFO_FIELD (StackSize)
@@ -259,8 +263,7 @@ CProcedureInvoke:
     add        rsp, 20h
 
     mov        edx, ebx          ; edx is ApIndex
-    mov        ecx, esi
-    add        ecx, MP_CPU_EXCHANGE_INFO_OFFSET ; rcx is address of exchange info data buffer
+    mov        rcx, qword [esi + MP_CPU_EXCHANGE_INFO_FIELD (CpuMpData)]
 
     mov        edi, esi
     add        edi, MP_CPU_EXCHANGE_INFO_FIELD (CFunction)

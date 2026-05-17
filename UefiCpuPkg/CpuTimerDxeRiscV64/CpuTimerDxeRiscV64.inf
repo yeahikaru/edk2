@@ -32,6 +32,7 @@
   CpuLib
   UefiBootServicesTableLib
   UefiDriverEntryPoint
+  TimerLib
 
 [LibraryClasses.RISCV64]
   RiscVSbiLib
@@ -39,6 +40,9 @@
 [Sources.RISCV64]
   Timer.h
   Timer.c
+
+[Pcd]
+  gEfiMdePkgTokenSpaceGuid.PcdRiscVFeatureOverride           ## CONSUMES
 
 [Protocols]
   gEfiCpuArchProtocolGuid       ## CONSUMES

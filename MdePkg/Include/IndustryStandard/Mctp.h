@@ -12,8 +12,7 @@
   https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.3.1.pdf
 **/
 
-#ifndef MCTP_H_
-#define MCTP_H_
+#pragma once
 
 ///
 /// Definitions of endpoint ID
@@ -111,7 +110,7 @@ typedef union {
     UINT32    HeaderVersion         : 4; ///< The version of header.
     UINT32    Reserved              : 4; ///< Reserved for future definitions.
     UINT32    DestinationEndpointId : 8; ///< Destination endpoint Id (EID).
-    UINT32    SourceEndpointIdId    : 8; ///< Source endpoint Id (EID)
+    UINT32    SourceEndpointId      : 8; ///< Source endpoint Id (EID)
     UINT32    MessageTag            : 3; ///< Check the MCTP Base specification for the
                                          ///< usages.
     UINT32    TagOwner              : 1; ///< Tag owner identifies the message was
@@ -135,5 +134,3 @@ typedef union {
   } Bits;
   UINT8    MessageHeader;
 } MCTP_MESSAGE_HEADER;
-
-#endif

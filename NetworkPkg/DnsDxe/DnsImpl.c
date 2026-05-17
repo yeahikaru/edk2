@@ -2,6 +2,7 @@
 DnsDxe support functions implementation.
 
 Copyright (c) 2016 - 2018, Intel Corporation. All rights reserved.<BR>
+Copyright (c) Microsoft Corporation
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -1164,10 +1165,9 @@ ParseDnsResponse (
   Dns4TokenEntry = NULL;
   Dns6TokenEntry = NULL;
 
-  IpCount          = 0;
-  RRCount          = 0;
-  AnswerSectionNum = 0;
-  CNameTtl         = 0;
+  IpCount  = 0;
+  RRCount  = 0;
+  CNameTtl = 0;
 
   HostAddr4 = NULL;
   HostAddr6 = NULL;
@@ -1377,8 +1377,6 @@ ParseDnsResponse (
     }
   }
 
-  Status = EFI_NOT_FOUND;
-
   //
   // Get Answer name
   //
@@ -1387,7 +1385,11 @@ ParseDnsResponse (
   //
   // Processing AnswerSection.
   //
-  while (AnswerSectionNum < DnsHeader->AnswersNum) {
+  if (DnsHeader->AnswersNum == 0) {
+    Status = EFI_NOT_FOUND;
+  }
+
+  for (AnswerSectionNum = 0; AnswerSectionNum < DnsHeader->AnswersNum; AnswerSectionNum++) {
     //
     // Check whether the remaining packet length is available or not.
     //
@@ -1634,7 +1636,6 @@ ParseDnsResponse (
     // Find next one
     //
     AnswerName = (CHAR8 *)AnswerSection + sizeof (*AnswerSection) + AnswerSection->DataLength;
-    AnswerSectionNum++;
   }
 
   if (Instance->Service->IpVersion == IP_VERSION_4) {
@@ -1963,6 +1964,14 @@ ConstructDNSQuery (
   NET_FRAGMENT       Frag;
   DNS_HEADER         *DnsHeader;
   DNS_QUERY_SECTION  *DnsQuery;
+  EFI_STATUS         Status;
+  UINT32             Random;
+
+  Status = PseudoRandomU32 (&Random);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "%a failed to generate random number: %r\n", __func__, Status));
+    return Status;
+  }
 
   //
   // Messages carried by UDP are restricted to 512 bytes (not counting the IP
@@ -1977,7 +1986,7 @@ ConstructDNSQuery (
   // Fill header
   //
   DnsHeader                    = (DNS_HEADER *)Frag.Bulk;
-  DnsHeader->Identification    = (UINT16)NET_RANDOM (NetRandomInitSeed ());
+  DnsHeader->Identification    = (UINT16)Random;
   DnsHeader->Flags.Uint16      = 0x0000;
   DnsHeader->Flags.Bits.RD     = 1;
   DnsHeader->Flags.Bits.OpCode = DNS_FLAGS_OPCODE_STANDARD;

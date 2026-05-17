@@ -28,7 +28,7 @@
   Depex - Dependency Expression.
 
   Copyright (c) 2014, Hewlett-Packard Development Company, L.P.
-  Copyright (c) 2009 - 2018, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2023, Intel Corporation. All rights reserved.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -325,6 +325,9 @@ SmmLoadImage (
   EFI_DEVICE_PATH_PROTOCOL       *HandleFilePath;
   EFI_FIRMWARE_VOLUME2_PROTOCOL  *Fv;
   PE_COFF_LOADER_IMAGE_CONTEXT   ImageContext;
+  UINTN                          Index;
+  UINTN                          StartIndex;
+  CHAR8                          EfiFileName[512];
 
   PERF_LOAD_IMAGE_BEGIN (DriverEntry->ImageHandle);
 
@@ -664,12 +667,6 @@ SmmLoadImage (
   // Print the load address and the PDB file name if it is available
   //
 
-  DEBUG_CODE_BEGIN ();
-
-  UINTN  Index;
-  UINTN  StartIndex;
-  CHAR8  EfiFileName[256];
-
   DEBUG ((
     DEBUG_INFO | DEBUG_LOAD,
     "Loading SMM driver at 0x%11p EntryPoint=0x%11p ",
@@ -717,8 +714,6 @@ SmmLoadImage (
   }
 
   DEBUG ((DEBUG_INFO | DEBUG_LOAD, "\n"));
-
-  DEBUG_CODE_END ();
 
   //
   // Free buffer allocated by Fv->ReadSection.
@@ -1322,6 +1317,8 @@ SmmDriverDispatchHandler (
     return EFI_NOT_FOUND;
   }
 
+  PERF_CALLBACK_BEGIN (&gEfiEventDxeDispatchGuid);
+
   for (HandleIndex = 0; HandleIndex < HandleCount; HandleIndex++) {
     FvHandle = HandleBuffer[HandleIndex];
 
@@ -1511,6 +1508,7 @@ SmmDriverDispatchHandler (
     }
   }
 
+  PERF_CALLBACK_END (&gEfiEventDxeDispatchGuid);
   return EFI_SUCCESS;
 }
 

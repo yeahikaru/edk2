@@ -9,8 +9,7 @@
 
 **/
 
-#ifndef EFI_REDFISH_DISCOVER_INTERNAL_H_
-#define EFI_REDFISH_DISCOVER_INTERNAL_H_
+#pragma once
 
 #include <Uefi.h>
 
@@ -27,7 +26,9 @@
 #include <Library/DebugLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/NetLib.h>
+#include <Library/PcdLib.h>
 #include <Library/PrintLib.h>
+#include <Library/RedfishDebugLib.h>
 #include <Library/RestExLib.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -37,6 +38,12 @@
 
 #define REDFISH_DISCOVER_VERSION                    0x00010000
 #define EFI_REDFISH_DISCOVER_NETWORK_INTERFACE_TPL  TPL_NOTIFY
+
+#define MAC_COMPARE(This, Target)  (CompareMem ((VOID *)&(This)->MacAddress, &(Target)->MacAddress, (This)->HwAddressSize) == 0)
+#define VALID_TCP6(Target, This)   ((Target)->IsIpv6 && ((This)->NetworkProtocolType == ProtocolTypeTcp6))
+#define VALID_TCP4(Target, This)   (!(Target)->IsIpv6 && ((This)->NetworkProtocolType == ProtocolTypeTcp4))
+#define REDFISH_HI_ITERFACE_SPECIFIC_DATA_LENGTH_OFFSET  ((UINT16)(UINTN)(&((SMBIOS_TABLE_TYPE42 *)0)->InterfaceTypeSpecificDataLength))
+#define REDFISH_HI_PROTOCOL_HOSTNAME_LENGTH_OFFSET       ((UINT16)(UINTN)(&((REDFISH_OVER_IP_PROTOCOL_DATA *)0)->RedfishServiceHostnameLength))
 
 //
 // GUID definitions
@@ -256,4 +263,3 @@ RedfishGetHostInterfaceProtocolData (
 extern EFI_GUID  gRedfishDiscoverTcp4Instance;
 extern EFI_GUID  gRedfishDiscoverTcp6Instance;
 extern EFI_GUID  gRedfishDiscoverRestEXInstance;
-#endif

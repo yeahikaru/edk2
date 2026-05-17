@@ -139,6 +139,23 @@ RandomBoolean (
 }
 
 /**
+  Set 8K stack as random value.
+**/
+VOID
+SetRandomStack (
+  VOID
+  )
+{
+  UINT64  Buffer[SIZE_1KB];
+  UINTN   Index;
+
+  for (Index = 0; Index < SIZE_1KB; Index++) {
+    Buffer[Index] = Random64 (0, MAX_UINT64);
+    Buffer[Index] = Buffer[Index];
+  }
+}
+
+/**
   Check if the Page table entry is valid
 
   @param[in]   PagingEntry    The entry in page table to verify
@@ -670,6 +687,7 @@ SingleMapEntryTest (
   IsNotPresent              = FALSE;
   IsModified                = FALSE;
 
+  SetRandomStack ();
   GenerateSingleRandomMapEntry (MaxAddress, MapEntrys);
   LastMapEntry = &MapEntrys->Maps[MapsIndex];
   Status       = PageTableParse (*PageTable, PagingMode, NULL, &MapCount);
@@ -767,7 +785,7 @@ SingleMapEntryTest (
     // Note the memory is used in one complete Random test.
     //
     Buffer = PagesRecord->AllocatePagesForPageTable (PagesRecord, EFI_SIZE_TO_PAGES (PageTableBufferSize));
-    UT_ASSERT_NOT_EQUAL (Buffer, NULL);
+    UT_ASSERT_NOT_NULL (Buffer);
     Status = PageTableMap (
                PageTable,
                PagingMode,
@@ -1039,7 +1057,11 @@ TestCaseforRandomTest (
   mSupportedBit.Bits.Pat            = 1;
   mSupportedBit.Bits.Global         = 1;
   mSupportedBit.Bits.ProtectionKey  = 0xF;
-  mSupportedBit.Bits.Nx             = 1;
+  if (((CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT *)Context)->PagingMode == PagingPae) {
+    mSupportedBit.Bits.ProtectionKey = 0;
+  }
+
+  mSupportedBit.Bits.Nx = 1;
 
   mRandomOption = ((CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT *)Context)->RandomOption;
   mNumberIndex  = 0;

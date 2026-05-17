@@ -358,7 +358,7 @@ NvmeFlush (
 }
 
 /**
-  Nonblocking I/O callback funtion when the event is signaled.
+  Nonblocking I/O callback function when the event is signaled.
 
   @param[in]  Event     The Event this notify function registered to.
   @param[in]  Context   Pointer to the context data registered to the
@@ -1699,7 +1699,9 @@ TrustTransferNvmeDevice (
   function shall return EFI_DEVICE_ERROR.
 
   @param  This                         Indicates a pointer to the calling context.
-  @param  MediaId                      ID of the medium to receive data from.
+  @param  MediaId                      ID of the medium to receive data from. If there is no
+                                       block IO protocol supported by the physical device, the
+                                       value of MediaId is undefined.
   @param  Timeout                      The timeout, in 100ns units, to use for the execution
                                        of the security protocol command. A Timeout value of 0
                                        means that this function will wait indefinitely for the
@@ -1812,7 +1814,9 @@ NvmeStorageSecurityReceiveData (
   shall return EFI_DEVICE_ERROR.
 
   @param  This                         Indicates a pointer to the calling context.
-  @param  MediaId                      ID of the medium to receive data from.
+  @param  MediaId                      ID of the medium to receive data from. If there is no
+                                       block IO protocol supported by the physical device, the
+                                       value of MediaId is undefined.
   @param  Timeout                      The timeout, in 100ns units, to use for the execution
                                        of the security protocol command. A Timeout value of 0
                                        means that this function will wait indefinitely for the

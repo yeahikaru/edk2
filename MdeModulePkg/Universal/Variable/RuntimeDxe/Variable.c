@@ -1549,39 +1549,40 @@ AutoUpdateLangVariable (
         // Get the corresponding ISO639 language tag according to RFC4646 language tag.
         //
         BestLang = GetLangFromSupportedLangCodes (mVariableModuleGlobal->LangCodes, Index, TRUE);
+        if (BestLang != NULL) {
+          //
+          // Check the variable space for both Lang and PlatformLang variable.
+          //
+          VariableEntry[0].VariableSize = ISO_639_2_ENTRY_SIZE + 1;
+          VariableEntry[0].Guid         = &gEfiGlobalVariableGuid;
+          VariableEntry[0].Name         = EFI_LANG_VARIABLE_NAME;
 
-        //
-        // Check the variable space for both Lang and PlatformLang variable.
-        //
-        VariableEntry[0].VariableSize = ISO_639_2_ENTRY_SIZE + 1;
-        VariableEntry[0].Guid         = &gEfiGlobalVariableGuid;
-        VariableEntry[0].Name         = EFI_LANG_VARIABLE_NAME;
+          VariableEntry[1].VariableSize = AsciiStrSize (BestPlatformLang);
+          VariableEntry[1].Guid         = &gEfiGlobalVariableGuid;
+          VariableEntry[1].Name         = EFI_PLATFORM_LANG_VARIABLE_NAME;
+          if (!CheckRemainingSpaceForConsistency (VARIABLE_ATTRIBUTE_NV_BS_RT, &VariableEntry[0], &VariableEntry[1], NULL)) {
+            //
+            // No enough variable space to set both Lang and PlatformLang successfully.
+            //
+            Status = EFI_OUT_OF_RESOURCES;
+          } else {
+            //
+            // Successfully convert PlatformLang to Lang, and set the BestLang value into Lang variable simultaneously.
+            //
+            FindVariable (EFI_LANG_VARIABLE_NAME, &gEfiGlobalVariableGuid, &Variable, &mVariableModuleGlobal->VariableGlobal, FALSE);
 
-        VariableEntry[1].VariableSize = AsciiStrSize (BestPlatformLang);
-        VariableEntry[1].Guid         = &gEfiGlobalVariableGuid;
-        VariableEntry[1].Name         = EFI_PLATFORM_LANG_VARIABLE_NAME;
-        if (!CheckRemainingSpaceForConsistency (VARIABLE_ATTRIBUTE_NV_BS_RT, &VariableEntry[0], &VariableEntry[1], NULL)) {
-          //
-          // No enough variable space to set both Lang and PlatformLang successfully.
-          //
-          Status = EFI_OUT_OF_RESOURCES;
-        } else {
-          //
-          // Successfully convert PlatformLang to Lang, and set the BestLang value into Lang variable simultaneously.
-          //
-          FindVariable (EFI_LANG_VARIABLE_NAME, &gEfiGlobalVariableGuid, &Variable, &mVariableModuleGlobal->VariableGlobal, FALSE);
-
-          Status = UpdateVariable (
-                     EFI_LANG_VARIABLE_NAME,
-                     &gEfiGlobalVariableGuid,
-                     BestLang,
-                     ISO_639_2_ENTRY_SIZE + 1,
-                     Attributes,
-                     0,
-                     0,
-                     &Variable,
-                     NULL
-                     );
+            Status = UpdateVariable (
+                       EFI_LANG_VARIABLE_NAME,
+                       &gEfiGlobalVariableGuid,
+                       BestLang,
+                       ISO_639_2_ENTRY_SIZE + 1,
+                       Attributes,
+                       0,
+                       0,
+                       &Variable,
+                       NULL
+                       );
+          }
         }
 
         DEBUG ((DEBUG_INFO, "Variable Driver Auto Update PlatformLang, PlatformLang:%a, Lang:%a Status: %r\n", BestPlatformLang, BestLang, Status));
@@ -1606,39 +1607,40 @@ AutoUpdateLangVariable (
         // Get the corresponding RFC4646 language tag according to ISO639 language tag.
         //
         BestPlatformLang = GetLangFromSupportedLangCodes (mVariableModuleGlobal->PlatformLangCodes, Index, FALSE);
+        if (BestPlatformLang != NULL) {
+          //
+          // Check the variable space for both PlatformLang and Lang variable.
+          //
+          VariableEntry[0].VariableSize = AsciiStrSize (BestPlatformLang);
+          VariableEntry[0].Guid         = &gEfiGlobalVariableGuid;
+          VariableEntry[0].Name         = EFI_PLATFORM_LANG_VARIABLE_NAME;
 
-        //
-        // Check the variable space for both PlatformLang and Lang variable.
-        //
-        VariableEntry[0].VariableSize = AsciiStrSize (BestPlatformLang);
-        VariableEntry[0].Guid         = &gEfiGlobalVariableGuid;
-        VariableEntry[0].Name         = EFI_PLATFORM_LANG_VARIABLE_NAME;
+          VariableEntry[1].VariableSize = ISO_639_2_ENTRY_SIZE + 1;
+          VariableEntry[1].Guid         = &gEfiGlobalVariableGuid;
+          VariableEntry[1].Name         = EFI_LANG_VARIABLE_NAME;
+          if (!CheckRemainingSpaceForConsistency (VARIABLE_ATTRIBUTE_NV_BS_RT, &VariableEntry[0], &VariableEntry[1], NULL)) {
+            //
+            // No enough variable space to set both PlatformLang and Lang successfully.
+            //
+            Status = EFI_OUT_OF_RESOURCES;
+          } else {
+            //
+            // Successfully convert Lang to PlatformLang, and set the BestPlatformLang value into PlatformLang variable simultaneously.
+            //
+            FindVariable (EFI_PLATFORM_LANG_VARIABLE_NAME, &gEfiGlobalVariableGuid, &Variable, &mVariableModuleGlobal->VariableGlobal, FALSE);
 
-        VariableEntry[1].VariableSize = ISO_639_2_ENTRY_SIZE + 1;
-        VariableEntry[1].Guid         = &gEfiGlobalVariableGuid;
-        VariableEntry[1].Name         = EFI_LANG_VARIABLE_NAME;
-        if (!CheckRemainingSpaceForConsistency (VARIABLE_ATTRIBUTE_NV_BS_RT, &VariableEntry[0], &VariableEntry[1], NULL)) {
-          //
-          // No enough variable space to set both PlatformLang and Lang successfully.
-          //
-          Status = EFI_OUT_OF_RESOURCES;
-        } else {
-          //
-          // Successfully convert Lang to PlatformLang, and set the BestPlatformLang value into PlatformLang variable simultaneously.
-          //
-          FindVariable (EFI_PLATFORM_LANG_VARIABLE_NAME, &gEfiGlobalVariableGuid, &Variable, &mVariableModuleGlobal->VariableGlobal, FALSE);
-
-          Status = UpdateVariable (
-                     EFI_PLATFORM_LANG_VARIABLE_NAME,
-                     &gEfiGlobalVariableGuid,
-                     BestPlatformLang,
-                     AsciiStrSize (BestPlatformLang),
-                     Attributes,
-                     0,
-                     0,
-                     &Variable,
-                     NULL
-                     );
+            Status = UpdateVariable (
+                       EFI_PLATFORM_LANG_VARIABLE_NAME,
+                       &gEfiGlobalVariableGuid,
+                       BestPlatformLang,
+                       AsciiStrSize (BestPlatformLang),
+                       Attributes,
+                       0,
+                       0,
+                       &Variable,
+                       NULL
+                       );
+          }
         }
 
         DEBUG ((DEBUG_INFO, "Variable Driver Auto Update Lang, Lang:%a, PlatformLang:%a Status: %r\n", BestLang, BestPlatformLang, Status));
@@ -2168,11 +2170,9 @@ UpdateVariable (
 
     if (!mVariableModuleGlobal->VariableGlobal.EmuNvMode) {
       //
-      // Four steps
-      // 1. Write variable header
-      // 2. Set variable state to header valid
-      // 3. Write variable data
-      // 4. Set variable state to valid
+      // Two steps
+      // 1. Write variable header and data
+      // 2. Set variable state to valid
       //
       //
       // Step 1:
@@ -2183,7 +2183,7 @@ UpdateVariable (
                  TRUE,
                  Fvb,
                  mVariableModuleGlobal->NonVolatileLastVariableOffset,
-                 (UINT32)GetVariableHeaderSize (AuthFormat),
+                 (UINT32)VarSize,
                  (UINT8 *)NextVariable
                  );
 
@@ -2193,41 +2193,6 @@ UpdateVariable (
 
       //
       // Step 2:
-      //
-      NextVariable->State = VAR_HEADER_VALID_ONLY;
-      Status              = UpdateVariableStore (
-                              &mVariableModuleGlobal->VariableGlobal,
-                              FALSE,
-                              TRUE,
-                              Fvb,
-                              mVariableModuleGlobal->NonVolatileLastVariableOffset + OFFSET_OF (VARIABLE_HEADER, State),
-                              sizeof (UINT8),
-                              &NextVariable->State
-                              );
-
-      if (EFI_ERROR (Status)) {
-        goto Done;
-      }
-
-      //
-      // Step 3:
-      //
-      Status = UpdateVariableStore (
-                 &mVariableModuleGlobal->VariableGlobal,
-                 FALSE,
-                 TRUE,
-                 Fvb,
-                 mVariableModuleGlobal->NonVolatileLastVariableOffset + GetVariableHeaderSize (AuthFormat),
-                 (UINT32)(VarSize - GetVariableHeaderSize (AuthFormat)),
-                 (UINT8 *)NextVariable + GetVariableHeaderSize (AuthFormat)
-                 );
-
-      if (EFI_ERROR (Status)) {
-        goto Done;
-      }
-
-      //
-      // Step 4:
       //
       NextVariable->State = VAR_ADDED;
       Status              = UpdateVariableStore (
@@ -2401,6 +2366,8 @@ Done:
                   );
       ASSERT_EFI_ERROR (Status);
     }
+  } else if (Status == EFI_OUT_OF_RESOURCES) {
+    DEBUG ((DEBUG_WARN, "UpdateVariable failed: Out of flash space\n"));
   }
 
   return Status;
@@ -2422,10 +2389,19 @@ Done:
   @param Data                       The buffer to return the contents of the variable. May be NULL
                                     with a zero DataSize in order to determine the size buffer needed.
 
-  @return EFI_INVALID_PARAMETER     Invalid parameter.
-  @return EFI_SUCCESS               Find the specified variable.
-  @return EFI_NOT_FOUND             Not found.
-  @return EFI_BUFFER_TO_SMALL       DataSize is too small for the result.
+  @retval EFI_SUCCESS               The function completed successfully.
+  @retval EFI_NOT_FOUND             The variable was not found.
+  @retval EFI_BUFFER_TOO_SMALL      The DataSize is too small for the result.
+  @retval EFI_INVALID_PARAMETER     VariableName is NULL.
+  @retval EFI_INVALID_PARAMETER     VendorGuid is NULL.
+  @retval EFI_INVALID_PARAMETER     DataSize is NULL.
+  @retval EFI_INVALID_PARAMETER     The DataSize is not too small and Data is NULL.
+  @retval EFI_DEVICE_ERROR          The variable could not be retrieved due to a hardware error.
+  @retval EFI_SECURITY_VIOLATION    The variable could not be retrieved due to an authentication failure.
+  @retval EFI_UNSUPPORTED           After ExitBootServices() has been called, this return code may be returned
+                                    if no variable storage is supported. The platform should describe this
+                                    runtime service as unsupported at runtime via an EFI_RT_PROPERTIES_TABLE
+                                    configuration table.
 
 **/
 EFI_STATUS
@@ -2516,6 +2492,11 @@ Done:
                                     GUID of an existing variable.
   @retval EFI_INVALID_PARAMETER     Null-terminator is not found in the first VariableNameSize bytes of
                                     the input VariableName buffer.
+  @retval EFI_DEVICE_ERROR          The variable could not be retrieved due to a hardware error.
+  @retval EFI_UNSUPPORTED           After ExitBootServices() has been called, this return code may be returned
+                                    if no variable storage is supported. The platform should describe this
+                                    runtime service as unsupported at runtime via an EFI_RT_PROPERTIES_TABLE
+                                    configuration table.
 
 **/
 EFI_STATUS
@@ -2613,11 +2594,19 @@ VariableServiceGetNextVariableName (
                                           data, this value contains the required size.
   @param Data                             Data pointer.
 
-  @return EFI_INVALID_PARAMETER           Invalid parameter.
-  @return EFI_SUCCESS                     Set successfully.
-  @return EFI_OUT_OF_RESOURCES            Resource not enough to set variable.
-  @return EFI_NOT_FOUND                   Not found.
-  @return EFI_WRITE_PROTECTED             Variable is read-only.
+  @retval EFI_SUCCESS                     The function completed successfully.
+  @retval EFI_NOT_FOUND                   The variable was not found.
+  @retval EFI_BUFFER_TOO_SMALL            The DataSize is too small for the result.
+  @retval EFI_INVALID_PARAMETER           VariableName is NULL.
+  @retval EFI_INVALID_PARAMETER           VendorGuid is NULL.
+  @retval EFI_INVALID_PARAMETER           DataSize is NULL.
+  @retval EFI_INVALID_PARAMETER           The DataSize is not too small and Data is NULL.
+  @retval EFI_DEVICE_ERROR                The variable could not be retrieved due to a hardware error.
+  @retval EFI_SECURITY_VIOLATION          The variable could not be retrieved due to an authentication failure.
+  @retval EFI_UNSUPPORTED                 After ExitBootServices() has been called, this return code may be returned
+                                          if no variable storage is supported. The platform should describe this
+                                          runtime service as unsupported at runtime via an EFI_RT_PROPERTIES_TABLE
+                                          configuration table.
 
 **/
 EFI_STATUS

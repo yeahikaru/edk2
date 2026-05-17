@@ -9,6 +9,8 @@
 
 #include <Library/BaseLib.h>
 #include <Library/BaseRiscVSbiLib.h>
+#include <Library/UefiLib.h>
+#include <Library/TimerLib.h>
 #include "Timer.h"
 
 //
@@ -43,11 +45,50 @@ STATIC EFI_TIMER_NOTIFY  mTimerNotifyFunction;
 STATIC UINT64  mTimerPeriod     = 0;
 STATIC UINT64  mLastPeriodStart = 0;
 
+//
+// Sstc support
+//
+STATIC BOOLEAN  mSstcEnabled = FALSE;
+
+/**
+  Program the timer.
+
+  Program either using stimecmp (when Sstc extension is enabled) or using SBI
+  TIME call.
+
+  @param NextValue             Core tick value the timer should expire.
+**/
+STATIC
+VOID
+RiscVProgramTimer (
+  UINT64  NextValue
+  )
+{
+  if (mSstcEnabled) {
+    RiscVSetSupervisorTimeCompareRegister (NextValue);
+  } else {
+    SbiSetTimer (NextValue);
+  }
+}
+
+/**
+  Check whether Sstc is enabled in PCD.
+
+**/
+STATIC
+BOOLEAN
+RiscVIsSstcEnabled (
+  VOID
+  )
+{
+  return ((PcdGet64 (PcdRiscVFeatureOverride) & RISCV_CPU_FEATURE_SSTC_BITMASK) != 0);
+}
+
 /**
   Timer Interrupt Handler.
 
-  @param InterruptType    The type of interrupt that occured
-  @param SystemContext    A pointer to the system context when the interrupt occured
+  @param InterruptType    The type of interrupt that occurred
+  @param SystemContext    A pointer to the system context when the interrupt occurred
 **/
 VOID
 EFIAPI
@@ -71,7 +112,12 @@ TimerInterruptHandler (
     // time to increment slower. So when we take an interrupt,
     // account for the actual time passed.
     //
-    mTimerNotifyFunction (PeriodStart - mLastPeriodStart);
+    mTimerNotifyFunction (
+      DivU64x32 (
+        EFI_TIMER_PERIOD_SECONDS (PeriodStart - mLastPeriodStart),
+        GetPerformanceCounterProperties (NULL, NULL)
+        )
+      );
   }
 
   if (mTimerPeriod == 0) {
@@ -80,8 +126,15 @@ TimerInterruptHandler (
     return;
   }
 
-  mLastPeriodStart          = PeriodStart;
-  SbiSetTimer (PeriodStart += mTimerPeriod);
+  mLastPeriodStart = PeriodStart;
+  PeriodStart     += DivU64x32 (
+                       MultU64x32 (
+                         mTimerPeriod,
+                         GetPerformanceCounterProperties (NULL, NULL)
+                         ),
+                       1000000u
+                       );  // convert to tick
+  RiscVProgramTimer (PeriodStart);
   RiscVEnableTimerInterrupt (); // enable SMode timer int
   gBS->RestoreTPL (OriginalTPL);
 }
@@ -163,6 +216,8 @@ TimerDriverSetTimerPeriod (
   IN UINT64                   TimerPeriod
   )
 {
+  UINT64  PeriodStart;
+
   DEBUG ((DEBUG_INFO, "TimerDriverSetTimerPeriod(0x%lx)\n", TimerPeriod));
 
   if (TimerPeriod == 0) {
@@ -171,10 +226,18 @@ TimerDriverSetTimerPeriod (
     return EFI_SUCCESS;
   }
 
-  mTimerPeriod     = TimerPeriod / 10; // convert unit from 100ns to 1us
-  mLastPeriodStart = RiscVReadTimer ();
-  SbiSetTimer (mLastPeriodStart + mTimerPeriod);
+  mTimerPeriod = TimerPeriod / 10;     // convert unit from 100ns to 1us
 
+  mLastPeriodStart = RiscVReadTimer ();
+  PeriodStart      = mLastPeriodStart;
+  PeriodStart     += DivU64x32 (
+                       MultU64x32 (
+                         mTimerPeriod,
+                         GetPerformanceCounterProperties (NULL, NULL)
+                         ),
+                       1000000u
+                       ); // convert to tick
+  RiscVProgramTimer (PeriodStart);
   mCpu->EnableInterrupt (mCpu);
   RiscVEnableTimerInterrupt (); // enable SMode timer int
   return EFI_SUCCESS;
@@ -241,7 +304,7 @@ TimerDriverGenerateSoftInterrupt (
 
   @retval EFI_SUCCESS            Timer Architectural Protocol created
   @retval EFI_OUT_OF_RESOURCES   Not enough resources available to initialize driver.
-  @retval EFI_DEVICE_ERROR       A device error occured attempting to initialize the driver.
+  @retval EFI_DEVICE_ERROR       A device error occurred attempting to initialize the driver.
 
 **/
 EFI_STATUS
@@ -257,6 +320,11 @@ TimerDriverInitialize (
   // Initialize the pointer to our notify function.
   //
   mTimerNotifyFunction = NULL;
+
+  if (RiscVIsSstcEnabled ()) {
+    mSstcEnabled = TRUE;
+    DEBUG ((DEBUG_INFO, "TimerDriverInitialize: Timer interrupt is via Sstc extension\n"));
+  }
 
   //
   // Make sure the Timer Architectural Protocol is not already installed in the system

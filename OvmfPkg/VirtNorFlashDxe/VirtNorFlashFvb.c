@@ -12,13 +12,14 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PcdLib.h>
+#include <Library/SafeIntLib.h>
 #include <Library/UefiLib.h>
 
 #include <Guid/NvVarStoreFormatted.h>
 #include <Guid/SystemNvDataGuid.h>
 #include <Guid/VariableFormat.h>
 
-#include "VirtNorFlash.h"
+#include "VirtNorFlashDxe.h"
 
 extern UINTN  mFlashNvStorageVariableBase;
 ///
@@ -185,11 +186,12 @@ ValidateFvHeader (
   IN  NOR_FLASH_INSTANCE  *Instance
   )
 {
-  UINT16                      Checksum;
-  EFI_FIRMWARE_VOLUME_HEADER  *FwVolHeader;
-  VARIABLE_STORE_HEADER       *VariableStoreHeader;
-  UINTN                       VariableStoreLength;
-  UINTN                       FvLength;
+  UINT16                            Checksum;
+  CONST EFI_FIRMWARE_VOLUME_HEADER  *FwVolHeader;
+  CONST VARIABLE_STORE_HEADER       *VariableStoreHeader;
+  UINTN                             VarOffset;
+  UINTN                             VariableStoreLength;
+  UINTN                             FvLength;
 
   FwVolHeader = (EFI_FIRMWARE_VOLUME_HEADER *)Instance->RegionBaseAddress;
 
@@ -239,9 +241,7 @@ ValidateFvHeader (
   VariableStoreHeader = (VARIABLE_STORE_HEADER *)((UINTN)FwVolHeader + FwVolHeader->HeaderLength);
 
   // Check the Variable Store Guid
-  if (!CompareGuid (&VariableStoreHeader->Signature, &gEfiVariableGuid) &&
-      !CompareGuid (&VariableStoreHeader->Signature, &gEfiAuthenticatedVariableGuid))
-  {
+  if (!CompareGuid (&VariableStoreHeader->Signature, &gEfiAuthenticatedVariableGuid)) {
     DEBUG ((
       DEBUG_INFO,
       "%a: Variable Store Guid non-compatible\n",
@@ -258,6 +258,148 @@ ValidateFvHeader (
       __func__
       ));
     return EFI_NOT_FOUND;
+  }
+
+  //
+  // check variables
+  //
+  DEBUG ((DEBUG_INFO, "%a: checking variables\n", __func__));
+  VarOffset = sizeof (*VariableStoreHeader);
+  for ( ; ;) {
+    UINTN                                VarHeaderEnd;
+    UINTN                                VarNameEnd;
+    UINTN                                VarEnd;
+    UINTN                                VarPadding;
+    CONST AUTHENTICATED_VARIABLE_HEADER  *VarHeader;
+    CONST CHAR16                         *VarName;
+    CONST CHAR8                          *VarState;
+    RETURN_STATUS                        Status;
+
+    Status = SafeUintnAdd (VarOffset, sizeof (*VarHeader), &VarHeaderEnd);
+    if (RETURN_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "%a: integer overflow\n", __func__));
+      return EFI_NOT_FOUND;
+    }
+
+    if (VarHeaderEnd >= VariableStoreHeader->Size) {
+      if (VarOffset <= VariableStoreHeader->Size - sizeof (UINT16)) {
+        CONST UINT16  *StartId;
+
+        StartId = (VOID *)((UINTN)VariableStoreHeader + VarOffset);
+        if (*StartId == 0x55aa) {
+          DEBUG ((DEBUG_ERROR, "%a: startid at invalid location\n", __func__));
+          return EFI_NOT_FOUND;
+        }
+      }
+
+      DEBUG ((DEBUG_INFO, "%a: end of var list (no space left)\n", __func__));
+      break;
+    }
+
+    VarHeader = (VOID *)((UINTN)VariableStoreHeader + VarOffset);
+    if (VarHeader->StartId != 0x55aa) {
+      DEBUG ((DEBUG_INFO, "%a: end of var list (no startid)\n", __func__));
+      break;
+    }
+
+    if (VarHeader->State == 0xff) {
+      DEBUG ((DEBUG_INFO, "%a: end of var list (unwritten state)\n", __func__));
+      break;
+    }
+
+    VarName = NULL;
+    switch (VarHeader->State) {
+      // usage: State = VAR_HEADER_VALID_ONLY
+      case VAR_HEADER_VALID_ONLY:
+        VarState = "header-ok";
+        VarName  = L"<unknown>";
+        break;
+
+      // usage: State = VAR_ADDED
+      case VAR_ADDED:
+        VarState = "ok";
+        break;
+
+      // usage: State &= VAR_IN_DELETED_TRANSITION
+      case VAR_ADDED &VAR_IN_DELETED_TRANSITION:
+        VarState = "del-in-transition";
+        break;
+
+      // usage: State &= VAR_DELETED
+      case VAR_ADDED &VAR_DELETED:
+      case VAR_ADDED &VAR_DELETED &VAR_IN_DELETED_TRANSITION:
+        VarState = "deleted";
+        break;
+
+      default:
+        DEBUG ((
+          DEBUG_ERROR,
+          "%a: invalid variable state: 0x%x\n",
+          __func__,
+          VarHeader->State
+          ));
+        return EFI_NOT_FOUND;
+    }
+
+    Status = SafeUintnAdd (VarHeaderEnd, VarHeader->NameSize, &VarNameEnd);
+    if (RETURN_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "%a: integer overflow\n", __func__));
+      return EFI_NOT_FOUND;
+    }
+
+    Status = SafeUintnAdd (VarNameEnd, VarHeader->DataSize, &VarEnd);
+    if (RETURN_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "%a: integer overflow\n", __func__));
+      return EFI_NOT_FOUND;
+    }
+
+    if (VarEnd > VariableStoreHeader->Size) {
+      DEBUG ((
+        DEBUG_ERROR,
+        "%a: invalid variable size: 0x%Lx + 0x%Lx + 0x%x + 0x%x > 0x%x\n",
+        __func__,
+        (UINT64)VarOffset,
+        (UINT64)(sizeof (*VarHeader)),
+        VarHeader->NameSize,
+        VarHeader->DataSize,
+        VariableStoreHeader->Size
+        ));
+      return EFI_NOT_FOUND;
+    }
+
+    if (((VarHeader->NameSize & 1) != 0) ||
+        (VarHeader->NameSize < 4))
+    {
+      DEBUG ((DEBUG_ERROR, "%a: invalid name size\n", __func__));
+      return EFI_NOT_FOUND;
+    }
+
+    if (VarName == NULL) {
+      VarName = (VOID *)((UINTN)VariableStoreHeader + VarHeaderEnd);
+      if (VarName[VarHeader->NameSize / 2 - 1] != L'\0') {
+        DEBUG ((DEBUG_ERROR, "%a: name is not null terminated\n", __func__));
+        return EFI_NOT_FOUND;
+      }
+    }
+
+    DEBUG ((
+      DEBUG_VERBOSE,
+      "%a: +0x%04Lx: name=0x%x data=0x%x guid=%g '%s' (%a)\n",
+      __func__,
+      (UINT64)VarOffset,
+      VarHeader->NameSize,
+      VarHeader->DataSize,
+      &VarHeader->VendorGuid,
+      VarName,
+      VarState
+      ));
+
+    VarPadding = (4 - (VarEnd & 3)) & 3;
+    Status     = SafeUintnAdd (VarEnd, VarPadding, &VarOffset);
+    if (RETURN_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "%a: integer overflow\n", __func__));
+      return EFI_NOT_FOUND;
+    }
   }
 
   return EFI_SUCCESS;
@@ -511,13 +653,30 @@ FvbRead (
 
   // Decide if we are doing full block reads or not.
   if (*NumBytes % BlockSize != 0) {
-    TempStatus = NorFlashRead (Instance, Instance->StartLba + Lba, Offset, *NumBytes, Buffer);
+    TempStatus = NorFlashRead (
+                   Instance->DeviceBaseAddress,
+                   Instance->RegionBaseAddress,
+                   Instance->StartLba + Lba,
+                   Instance->BlockSize,
+                   Instance->Size,
+                   Offset,
+                   *NumBytes,
+                   Buffer
+                   );
     if (EFI_ERROR (TempStatus)) {
       return EFI_DEVICE_ERROR;
     }
   } else {
     // Read NOR Flash data into shadow buffer
-    TempStatus = NorFlashReadBlocks (Instance, Instance->StartLba + Lba, BlockSize, Buffer);
+    TempStatus = NorFlashReadBlocks (
+                   Instance->DeviceBaseAddress,
+                   Instance->RegionBaseAddress,
+                   Instance->StartLba + Lba,
+                   Instance->LastBlock,
+                   Instance->BlockSize,
+                   BlockSize,
+                   Buffer
+                   );
     if (EFI_ERROR (TempStatus)) {
       // Return one of the pre-approved error statuses
       return EFI_DEVICE_ERROR;
@@ -592,10 +751,39 @@ FvbWrite (
   )
 {
   NOR_FLASH_INSTANCE  *Instance;
+  EFI_TPL             OriginalTPL;
+  EFI_STATUS          Status;
 
   Instance = INSTANCE_FROM_FVB_THIS (This);
 
-  return NorFlashWriteSingleBlock (Instance, Instance->StartLba + Lba, Offset, NumBytes, Buffer);
+  if (!EfiAtRuntime ()) {
+    // Raise TPL to TPL_HIGH to stop anyone from interrupting us.
+    OriginalTPL = gBS->RaiseTPL (TPL_HIGH_LEVEL);
+  } else {
+    // This initialization is only to prevent the compiler to complain about the
+    // use of uninitialized variables
+    OriginalTPL = TPL_HIGH_LEVEL;
+  }
+
+  Status = NorFlashWriteSingleBlock (
+             Instance->DeviceBaseAddress,
+             Instance->RegionBaseAddress,
+             Instance->StartLba + Lba,
+             Instance->LastBlock,
+             Instance->BlockSize,
+             Instance->Size,
+             Offset,
+             NumBytes,
+             Buffer,
+             Instance->ShadowBuffer
+             );
+
+  if (!EfiAtRuntime ()) {
+    // Interruptions can resume.
+    gBS->RestoreTPL (OriginalTPL);
+  }
+
+  return Status;
 }
 
 /**
@@ -653,6 +841,7 @@ FvbEraseBlocks (
   UINTN               BlockAddress; // Physical address of Lba to erase
   EFI_LBA             StartingLba;  // Lba from which we start erasing
   UINTN               NumOfLba;     // Number of Lba blocks to erase
+  EFI_TPL             OriginalTPL;
   NOR_FLASH_INSTANCE  *Instance;
 
   Instance = INSTANCE_FROM_FVB_THIS (This);
@@ -723,7 +912,21 @@ FvbEraseBlocks (
 
       // Erase it
       DEBUG ((DEBUG_BLKIO, "FvbEraseBlocks: Erasing Lba=%ld @ 0x%08x.\n", Instance->StartLba + StartingLba, BlockAddress));
-      Status = NorFlashUnlockAndEraseSingleBlock (Instance, BlockAddress);
+      if (!EfiAtRuntime ()) {
+        // Raise TPL to TPL_HIGH to stop anyone from interrupting us.
+        OriginalTPL = gBS->RaiseTPL (TPL_HIGH_LEVEL);
+      } else {
+        // This initialization is only to prevent the compiler to complain about the
+        // use of uninitialized variables
+        OriginalTPL = TPL_HIGH_LEVEL;
+      }
+
+      Status = NorFlashUnlockAndEraseSingleBlock (Instance->DeviceBaseAddress, BlockAddress);
+      if (!EfiAtRuntime ()) {
+        // Interruptions can resume.
+        gBS->RestoreTPL (OriginalTPL);
+      }
+
       if (EFI_ERROR (Status)) {
         VA_END (Args);
         Status = EFI_DEVICE_ERROR;

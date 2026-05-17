@@ -5,6 +5,9 @@
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 ##
 {
+    "PrEval": {
+        "DscPath": "PrmPkg.dsc",
+    },
     ## options defined .pytool/Plugin/LicenseCheck
     "LicenseCheck": {
         "IgnoreFiles": []
@@ -46,7 +49,6 @@
     ## options defined .pytool/Plugin/DependencyCheck
     "DependencyCheck": {
         "AcceptableDependencies": [
-            "ArmPkg/ArmPkg.dec",
             "MdeModulePkg/MdeModulePkg.dec",
             "MdePkg/MdePkg.dec",
             "PrmPkg/PrmPkg.dec",
@@ -98,6 +100,12 @@
           "keepoptionalheader",
           "odule",                  # note: appears in buffer ascii dump in documentation
           "oemid",
+          "prmconfig",
+          "prmcontextbufferlib",
+          "prmexportdescriptor",
+          "prminfo",
+          "prmloader",
+          "prmmodulediscoverylib",
           "prmopreg",
           "prmpecofflib",
           "prmpkg",

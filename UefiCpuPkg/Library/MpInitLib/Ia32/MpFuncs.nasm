@@ -1,5 +1,5 @@
 ;------------------------------------------------------------------------------ ;
-; Copyright (c) 2015 - 2023, Intel Corporation. All rights reserved.<BR>
+; Copyright (c) 2015 - 2024, Intel Corporation. All rights reserved.<BR>
 ; SPDX-License-Identifier: BSD-2-Clause-Patent
 ;
 ; Module Name:
@@ -197,8 +197,8 @@ CProcedureInvoke:
 
     push       ebx               ; Push ApIndex
     mov        eax, esi
-    add        eax, MP_CPU_EXCHANGE_INFO_OFFSET
-    push       eax               ; push address of exchange info data buffer
+    add        eax, MP_CPU_EXCHANGE_INFO_FIELD (CpuMpData)
+    push       dword [eax]       ; push address of CpuMpData
 
     mov        edi, esi
     add        edi, MP_CPU_EXCHANGE_INFO_FIELD (CFunction)
@@ -225,6 +225,10 @@ RendezvousFunnelProcEnd:
 ;  specific to SEV-ES support and are not applicable on IA32.
 ;-------------------------------------------------------------------------------------
 AsmRelocateApLoopGenericStart:
+    mov        eax, cr0
+    btr        eax, 31             ; Clear CR0.PG
+    mov        cr0, eax            ; Disable paging since the page table might be unavailable
+
     mov        eax, esp
     mov        esp, [eax + 12]     ; TopOfApStack
     push       dword [eax]         ; push return address for stack trace

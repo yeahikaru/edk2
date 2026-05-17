@@ -2,6 +2,7 @@
   SMI handler profile support.
 
 Copyright (c) 2017, Intel Corporation. All rights reserved.<BR>
+Copyright (c) Microsoft Corporation.
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -44,6 +45,14 @@ typedef struct {
 **/
 VOID
 RegisterSmiHandlerProfileHandler (
+  VOID
+  );
+
+/**
+  Build SMI handler profile database.
+**/
+VOID
+BuildSmiHandlerProfileDatabase (
   VOID
   );
 
@@ -335,7 +344,9 @@ GetSmmLoadedImage (
 
     if (RealImageBase != 0) {
       PdbString = PeCoffLoaderGetPdbPointer ((VOID *)(UINTN)RealImageBase);
-      DEBUG ((DEBUG_INFO, "       pdb - %a\n", PdbString));
+      if (PdbString != NULL) {
+        DEBUG ((DEBUG_INFO, "       pdb - %a\n", PdbString));
+      }
     } else {
       PdbString = NULL;
     }
@@ -495,6 +506,8 @@ SmmReadyToLockInSmiHandlerProfile (
   IN EFI_HANDLE      Handle
   )
 {
+  RegisterSmiHandlerProfileHandler ();
+
   //
   // Dump all image
   //
@@ -528,7 +541,7 @@ SmmReadyToLockInSmiHandlerProfile (
 
   DEBUG ((DEBUG_INFO, "\n"));
 
-  RegisterSmiHandlerProfileHandler ();
+  BuildSmiHandlerProfileDatabase ();
 
   if (mImageStruct != NULL) {
     FreePool (mImageStruct);
@@ -860,7 +873,7 @@ GetSmiHandlerProfileDatabaseData (
 }
 
 /**
-  build SMI handler profile database.
+  Build SMI handler profile database.
 **/
 VOID
 BuildSmiHandlerProfileDatabase (
@@ -1074,8 +1087,6 @@ RegisterSmiHandlerProfileHandler (
                     &DispatchHandle
                     );
   ASSERT_EFI_ERROR (Status);
-
-  BuildSmiHandlerProfileDatabase ();
 }
 
 /**

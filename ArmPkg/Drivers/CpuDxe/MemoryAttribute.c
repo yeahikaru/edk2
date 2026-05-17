@@ -9,42 +9,6 @@
 #include "CpuDxe.h"
 
 /**
-  Check whether the provided memory range is covered by a single entry of type
-  EfiGcdSystemMemory in the GCD memory map.
-
-  @param  BaseAddress       The physical address that is the start address of
-                            a memory region.
-  @param  Length            The size in bytes of the memory region.
-
-  @return Whether the region is system memory or not.
-**/
-STATIC
-BOOLEAN
-RegionIsSystemMemory (
-  IN  EFI_PHYSICAL_ADDRESS  BaseAddress,
-  IN  UINT64                Length
-  )
-{
-  EFI_GCD_MEMORY_SPACE_DESCRIPTOR  GcdDescriptor;
-  EFI_PHYSICAL_ADDRESS             GcdEndAddress;
-  EFI_STATUS                       Status;
-
-  Status = gDS->GetMemorySpaceDescriptor (BaseAddress, &GcdDescriptor);
-  if (EFI_ERROR (Status) ||
-      (GcdDescriptor.GcdMemoryType != EfiGcdMemoryTypeSystemMemory))
-  {
-    return FALSE;
-  }
-
-  GcdEndAddress = GcdDescriptor.BaseAddress + GcdDescriptor.Length;
-
-  //
-  // Return TRUE if the GCD descriptor covers the range entirely
-  //
-  return GcdEndAddress >= (BaseAddress + Length);
-}
-
-/**
   This function retrieves the attributes of the memory region specified by
   BaseAddress and Length. If different attributes are obtained from different
   parts of the memory region, EFI_NO_MAPPING will be returned.
@@ -82,11 +46,14 @@ GetMemoryAttributes (
   EFI_STATUS  Status;
 
   if ((Length == 0) || (Attributes == NULL)) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "%a: BaseAddress 0x%llx Length 0x%llx is zero or Attributes is NULL\n",
+      __func__,
+      BaseAddress,
+      Length
+      ));
     return EFI_INVALID_PARAMETER;
-  }
-
-  if (!RegionIsSystemMemory (BaseAddress, Length)) {
-    return EFI_UNSUPPORTED;
   }
 
   DEBUG ((
@@ -183,8 +150,6 @@ SetMemoryAttributes (
   IN  UINT64                         Attributes
   )
 {
-  EFI_STATUS  Status;
-
   DEBUG ((
     DEBUG_INFO,
     "%a: BaseAddress == 0x%lx, Length == 0x%lx, Attributes == 0x%lx\n",
@@ -197,35 +162,17 @@ SetMemoryAttributes (
   if ((Length == 0) ||
       ((Attributes & ~(EFI_MEMORY_RO | EFI_MEMORY_RP | EFI_MEMORY_XP)) != 0))
   {
+    DEBUG ((
+      DEBUG_ERROR,
+      "%a: BaseAddress 0x%llx Length is zero or Attributes (0x%llx) is invalid\n",
+      __func__,
+      BaseAddress,
+      Attributes
+      ));
     return EFI_INVALID_PARAMETER;
   }
 
-  if (!RegionIsSystemMemory (BaseAddress, Length)) {
-    return EFI_UNSUPPORTED;
-  }
-
-  if ((Attributes & EFI_MEMORY_RP) != 0) {
-    Status = ArmSetMemoryRegionNoAccess (BaseAddress, Length);
-    if (EFI_ERROR (Status)) {
-      return EFI_UNSUPPORTED;
-    }
-  }
-
-  if ((Attributes & EFI_MEMORY_RO) != 0) {
-    Status = ArmSetMemoryRegionReadOnly (BaseAddress, Length);
-    if (EFI_ERROR (Status)) {
-      return EFI_UNSUPPORTED;
-    }
-  }
-
-  if ((Attributes & EFI_MEMORY_XP) != 0) {
-    Status = ArmSetMemoryRegionNoExec (BaseAddress, Length);
-    if (EFI_ERROR (Status)) {
-      return EFI_UNSUPPORTED;
-    }
-  }
-
-  return EFI_SUCCESS;
+  return ArmSetMemoryAttributes (BaseAddress, Length, Attributes, Attributes);
 }
 
 /**
@@ -267,6 +214,9 @@ ClearMemoryAttributes (
   IN  UINT64                         Attributes
   )
 {
+  UINTN       RegionAddress;
+  UINTN       RegionLength;
+  UINTN       RegionAttributes;
   EFI_STATUS  Status;
 
   DEBUG ((
@@ -281,35 +231,38 @@ ClearMemoryAttributes (
   if ((Length == 0) ||
       ((Attributes & ~(EFI_MEMORY_RO | EFI_MEMORY_RP | EFI_MEMORY_XP)) != 0))
   {
+    DEBUG ((
+      DEBUG_ERROR,
+      "%a: BaseAddress 0x%llx Length is zero or Attributes (0x%llx) is invalid\n",
+      __func__,
+      BaseAddress,
+      Attributes
+      ));
     return EFI_INVALID_PARAMETER;
   }
 
-  if (!RegionIsSystemMemory (BaseAddress, Length)) {
-    return EFI_UNSUPPORTED;
-  }
-
-  if ((Attributes & EFI_MEMORY_RP) != 0) {
-    Status = ArmClearMemoryRegionNoAccess (BaseAddress, Length);
-    if (EFI_ERROR (Status)) {
-      return EFI_UNSUPPORTED;
-    }
-  }
-
-  if ((Attributes & EFI_MEMORY_RO) != 0) {
-    Status = ArmClearMemoryRegionReadOnly (BaseAddress, Length);
-    if (EFI_ERROR (Status)) {
-      return EFI_UNSUPPORTED;
-    }
-  }
-
+  // ARM requires XN on device memory to prevent speculative instruction fetches
   if ((Attributes & EFI_MEMORY_XP) != 0) {
-    Status = ArmClearMemoryRegionNoExec (BaseAddress, Length);
-    if (EFI_ERROR (Status)) {
-      return EFI_UNSUPPORTED;
+    for (RegionAddress = (UINTN)BaseAddress;
+         RegionAddress < (UINTN)(BaseAddress + Length);
+         RegionAddress += RegionLength)
+    {
+      Status = GetMemoryRegion (
+                 &RegionAddress,
+                 &RegionLength,
+                 &RegionAttributes
+                 );
+      if (EFI_ERROR (Status)) {
+        return EFI_UNSUPPORTED;
+      }
+
+      if ((RegionAttributes & TT_ATTR_INDX_MASK) == TT_ATTR_INDX_DEVICE_MEMORY) {
+        return EFI_UNSUPPORTED;
+      }
     }
   }
 
-  return EFI_SUCCESS;
+  return ArmSetMemoryAttributes (BaseAddress, Length, 0, Attributes);
 }
 
 EFI_MEMORY_ATTRIBUTE_PROTOCOL  mMemoryAttribute = {

@@ -5,15 +5,14 @@
   SPDX-License-Identifier: BSD-2-Clause-Patent
 **/
 
-#ifndef MOCK_HOB_LIB_H_
-#define MOCK_HOB_LIB_H_
+#pragma once
 
 #include <Library/GoogleTestLib.h>
 #include <Library/FunctionMockLib.h>
 extern "C" {
-#include <Pi/PiMultiPhase.h>
-#include <Uefi.h>
-#include <Library/HobLib.h>
+  #include <Pi/PiMultiPhase.h>
+  #include <Uefi.h>
+  #include <Library/HobLib.h>
 }
 
 struct MockHobLib {
@@ -145,6 +144,16 @@ struct MockHobLib {
      IN UINT64                Length,
      IN EFI_MEMORY_TYPE       MemoryType)
     );
+  MOCK_FUNCTION_DECLARATION (
+    VOID *,
+    GetNextMemoryAllocationGuidHob,
+    (IN CONST EFI_GUID  *Guid,
+     IN CONST VOID      *HobStart)
+    );
+  MOCK_FUNCTION_DECLARATION (
+    VOID *,
+    TagMemoryAllocationHobWithGuid,
+    (IN EFI_PHYSICAL_ADDRESS  BaseAddress,
+     IN CONST EFI_GUID        *Guid)
+    );
 };
-
-#endif

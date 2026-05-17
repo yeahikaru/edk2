@@ -2,14 +2,13 @@
   Definitions of RedfishPlatformConfigLib
 
   (C) Copyright 2021 Hewlett Packard Enterprise Development LP<BR>
-  Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#ifndef REDFISH_PLATFORM_CONFIG_LIB_H_
-#define REDFISH_PLATFORM_CONFIG_LIB_H_
+#pragma once
 
 #include <Protocol/EdkIIRedfishPlatformConfig.h>
 
@@ -40,7 +39,7 @@ RedfishPlatformConfigGetValue (
   @param[in]   Schema              The Redfish schema to query.
   @param[in]   Version             The Redfish version to query.
   @param[in]   ConfigureLang       The target value which match this configure Language.
-  @param[in]   Value               The value to set.
+  @param[in]   Value               Pointer to the Redfish value to set.
 
   @retval EFI_SUCCESS              Value is returned successfully.
   @retval EFI_NOT_READY            Redfish Platform Config protocol is not ready.
@@ -52,7 +51,7 @@ RedfishPlatformConfigSetValue (
   IN     CHAR8                *Schema,
   IN     CHAR8                *Version,
   IN     EFI_STRING           ConfigureLang,
-  IN     EDKII_REDFISH_VALUE  Value
+  IN     EDKII_REDFISH_VALUE  *Value
   );
 
 /**
@@ -82,7 +81,7 @@ RedfishPlatformConfigGetConfigureLang (
   Get the list of supported Redfish schema from platform configuration.
 
   @param[out]  SupportedSchema     The supported schema list which is separated by ';'.
-                                   For example: "x-uefi-redfish-Memory.v1_7_1;x-uefi-redfish-Boot.v1_0_1"
+                                   For example: "x-UEFI-redfish-Memory.v1_7_1;x-UEFI-redfish-Boot.v1_0_1"
                                    The SupportedSchema is allocated by the callee. It's caller's
                                    responsibility to free this buffer using FreePool().
 
@@ -139,5 +138,3 @@ RedfishPlatformConfigGetDefaultValue (
   IN     UINT16               DefaultClass,
   OUT    EDKII_REDFISH_VALUE  *Value
   );
-
-#endif

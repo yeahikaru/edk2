@@ -7,8 +7,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#ifndef _SCSI_DISK_H_
-#define _SCSI_DISK_H_
+#pragma once
 
 #include <Uefi.h>
 
@@ -19,7 +18,6 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <Protocol/EraseBlock.h>
 #include <Protocol/DriverBinding.h>
 #include <Protocol/ScsiPassThruExt.h>
-#include <Protocol/ScsiPassThru.h>
 #include <Protocol/DiskInfo.h>
 #include <Protocol/StorageSecurityCommand.h>
 
@@ -94,6 +92,11 @@ typedef struct {
   // The queue for asynchronous task requests
   //
   LIST_ENTRY                               AsyncTaskQueue;
+
+  //
+  // The flag indicates FUA support
+  //
+  BOOLEAN                                  FuaMode;
 } SCSI_DISK_DEV;
 
 #define SCSI_DISK_DEV_FROM_BLKIO(a)     CR (a, SCSI_DISK_DEV, BlkIo, SCSI_DISK_DEV_SIGNATURE)
@@ -194,6 +197,13 @@ extern EFI_COMPONENT_NAME2_PROTOCOL  gScsiDiskComponentName2;
 // to respond command.
 //
 #define SCSI_DISK_TIMEOUT  EFI_TIMER_PERIOD_SECONDS (30)
+
+//
+// The length of Mode parameter header(10) is 8 bytes. The
+// length of Caching Mode page is 20 bytes. Without block
+// descriptors, the buffer for Caching Mode page is 28.
+//
+#define CACHE_MODE_PAGE_LEN  28
 
 /**
   Test to see if this driver supports ControllerHandle.
@@ -677,7 +687,9 @@ ScsiDiskEraseBlocks (
   function shall return EFI_DEVICE_ERROR.
 
   @param  This                         Indicates a pointer to the calling context.
-  @param  MediaId                      ID of the medium to receive data from.
+  @param  MediaId                      ID of the medium to receive data from. If there is no
+                                       block IO protocol supported by the physical device, the
+                                       value of MediaId is undefined.
   @param  Timeout                      The timeout, in 100ns units, to use for the execution
                                        of the security protocol command. A Timeout value of 0
                                        means that this function will wait indefinitely for the
@@ -751,7 +763,9 @@ ScsiDiskReceiveData (
   shall return EFI_DEVICE_ERROR.
 
   @param  This                         Indicates a pointer to the calling context.
-  @param  MediaId                      ID of the medium to receive data from.
+  @param  MediaId                      ID of the medium to receive data from. If there is no
+                                       block IO protocol supported by the physical device, the
+                                       value of MediaId is undefined.
   @param  Timeout                      The timeout, in 100ns units, to use for the execution
                                        of the security protocol command. A Timeout value of 0
                                        means that this function will wait indefinitely for the
@@ -1589,4 +1603,13 @@ DetermineInstallStorageSecurity (
   IN  EFI_HANDLE     ChildHandle
   );
 
-#endif
+/**
+  Get FUA Mode for the storage.
+
+  @param   ScsiDiskDevice    The pointer of SCSI_DISK_DEV.
+
+**/
+EFI_STATUS
+ScsiDiskFuaMode (
+  IN     SCSI_DISK_DEV  *ScsiDiskDevice
+  );

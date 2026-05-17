@@ -810,12 +810,18 @@ FtwGetLastWriteHeader (
   FtwHeader       = (EFI_FAULT_TOLERANT_WRITE_HEADER *)(FtwWorkSpaceHeader + 1);
   Offset          = sizeof (EFI_FAULT_TOLERANT_WORKING_BLOCK_HEADER);
 
+  if (!CompareGuid (&FtwWorkSpaceHeader->Signature, &gEdkiiWorkingBlockSignatureGuid)) {
+    *FtwWriteHeader = FtwHeader;
+    return EFI_ABORTED;
+  }
+
   while (FtwHeader->Complete == FTW_VALID_STATE) {
     Offset += FTW_WRITE_TOTAL_SIZE (FtwHeader->NumberOfWrites, FtwHeader->PrivateDataSize);
     //
     // If Offset exceed the FTW work space boudary, return error.
     //
-    if (Offset >= FtwWorkSpaceSize) {
+
+    if ((Offset + sizeof (EFI_FAULT_TOLERANT_WRITE_HEADER)) >= FtwWorkSpaceSize) {
       *FtwWriteHeader = FtwHeader;
       return EFI_ABORTED;
     }
@@ -850,7 +856,7 @@ FtwGetLastWriteRecord (
   OUT EFI_FAULT_TOLERANT_WRITE_RECORD  **FtwWriteRecord
   )
 {
-  UINTN                            Index;
+  UINT64                           Index;
   EFI_FAULT_TOLERANT_WRITE_RECORD  *FtwRecord;
 
   *FtwWriteRecord = NULL;
@@ -1294,7 +1300,10 @@ InitFtwProtocol (
   // Refresh the working space data from working block
   //
   Status = WorkSpaceRefresh (FtwDevice);
-  ASSERT_EFI_ERROR (Status);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Ftw: Init.. WorkSpaceRefresh failed: Status = %r\n", Status));
+  }
+
   //
   // If the working block workspace is not valid, try the spare block
   //

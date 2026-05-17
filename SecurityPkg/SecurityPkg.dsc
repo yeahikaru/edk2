@@ -1,7 +1,7 @@
 ## @file
 #  Security Module Package for All Architectures.
 #
-# Copyright (c) 2009 - 2021, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2009 - 2024, Intel Corporation. All rights reserved.<BR>
 # (C) Copyright 2015-2020 Hewlett Packard Enterprise Development LP<BR>
 # Copyright (c) 2022, Loongson Technology Corporation Limited. All rights reserved.<BR>
 # Copyright (c) 2021 - 2022, Arm Limited. All rights reserved.<BR>
@@ -15,7 +15,7 @@
   PLATFORM_VERSION               = 0.98
   DSC_SPECIFICATION              = 0x00010005
   OUTPUT_DIRECTORY               = Build/SecurityPkg
-  SUPPORTED_ARCHITECTURES        = IA32|X64|EBC|ARM|AARCH64|RISCV64|LOONGARCH64
+  SUPPORTED_ARCHITECTURES        = IA32|X64|EBC|AARCH64|RISCV64|LOONGARCH64
   BUILD_TARGETS                  = DEBUG|RELEASE|NOOPT
   SKUID_IDENTIFIER               = DEFAULT
 
@@ -76,33 +76,30 @@
   TdxLib|MdePkg/Library/TdxLib/TdxLib.inf
   VariablePolicyHelperLib|MdeModulePkg/Library/VariablePolicyHelperLib/VariablePolicyHelperLib.inf
 
-[LibraryClasses.ARM, LibraryClasses.AARCH64]
-  #
-  # It is not possible to prevent the ARM compiler for generic intrinsic functions.
-  # This library provides the intrinsic functions generate by a given compiler.
-  # And NULL mean link this library into all ARM images.
-  #
-  NULL|ArmPkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib.inf
+  SpdmSecurityLib|SecurityPkg/DeviceSecurity/SpdmSecurityLib/SpdmSecurityLib.inf
+  SpdmDeviceSecretLib|SecurityPkg/DeviceSecurity/SpdmLib/SpdmDeviceSecretLibNull.inf
+  SpdmCryptLib|SecurityPkg/DeviceSecurity/SpdmLib/SpdmCryptLib.inf
+  SpdmCommonLib|SecurityPkg/DeviceSecurity/SpdmLib/SpdmCommonLib.inf
+  SpdmRequesterLib|SecurityPkg/DeviceSecurity/SpdmLib/SpdmRequesterLib.inf
+  SpdmResponderLib|SecurityPkg/DeviceSecurity/SpdmLib/SpdmResponderLib.inf
+  SpdmSecuredMessageLib|SecurityPkg/DeviceSecurity/SpdmLib/SpdmSecuredMessageLib.inf
+  SpdmTransportMctpLib|SecurityPkg/DeviceSecurity/SpdmLib/SpdmTransportMctpLib.inf
+  SpdmTransportPciDoeLib|SecurityPkg/DeviceSecurity/SpdmLib/SpdmTransportPciDoeLib.inf
+  CryptlibWrapper|SecurityPkg/DeviceSecurity/OsStub/CryptlibWrapper/CryptlibWrapper.inf
+  PlatformLibWrapper|SecurityPkg/DeviceSecurity/OsStub/PlatformLibWrapper/PlatformLibWrapper.inf
+  MemLibWrapper|SecurityPkg/DeviceSecurity/OsStub/MemLibWrapper/MemLibWrapper.inf
 
-  # Add support for GCC stack protector
-  NULL|MdePkg/Library/BaseStackCheckLib/BaseStackCheckLib.inf
-
-  ArmSoftFloatLib|ArmPkg/Library/ArmSoftFloatLib/ArmSoftFloatLib.inf
-
+[LibraryClasses.AARCH64]
   ArmTrngLib|MdePkg/Library/BaseArmTrngLibNull/BaseArmTrngLibNull.inf
-
-[LibraryClasses.ARM]
-  RngLib|MdePkg/Library/BaseRngLibTimerLib/BaseRngLibTimerLib.inf
+  ArmSmcLib|MdePkg/Library/ArmSmcLib/ArmSmcLib.inf
+  ArmSvcLib|MdePkg/Library/ArmSvcLib/ArmSvcLib.inf
+  ArmFfaLib|MdeModulePkg/Library/ArmFfaLib/ArmFfaPeiLib.inf
 
 [LibraryClasses.RISCV64]
-  RngLib|MdePkg/Library/BaseRngLibTimerLib/BaseRngLibTimerLib.inf
+  RngLib|MdeModulePkg/Library/BaseRngLibTimerLib/BaseRngLibTimerLib.inf
 
-[LibraryClasses.X64.SEC]
-  HashLib|SecurityPkg/Library/HashLibTdx/HashLibTdx.inf
-  TpmMeasurementLib|SecurityPkg/Library/SecTpmMeasurementLib/SecTpmMeasurementLibTdx.inf
-
-[LibraryClasses.X64.DXE_DRIVER]
-  HashLib|SecurityPkg/Library/HashLibTdx/HashLibTdx.inf
+[LibraryClasses.common.SEC]
+  TpmMeasurementLib|SecurityPkg/Library/SecTpmMeasurementLib/SecTpmMeasurementLib.inf
 
 [LibraryClasses.common.PEIM]
   PeimEntryPoint|MdePkg/Library/PeimEntryPoint/PeimEntryPoint.inf
@@ -140,7 +137,7 @@
   Tpm2DeviceLib|SecurityPkg/Library/Tpm2DeviceLibTcg2/Tpm2DeviceLibTcg2.inf
   FileExplorerLib|MdeModulePkg/Library/FileExplorerLib/FileExplorerLib.inf
 
-[LibraryClasses.common.UEFI_DRIVER, LibraryClasses.common.DXE_RUNTIME_DRIVER, LibraryClasses.common.DXE_SAL_DRIVER,]
+[LibraryClasses.common.UEFI_DRIVER, LibraryClasses.common.DXE_RUNTIME_DRIVER,]
   HobLib|MdePkg/Library/DxeHobLib/DxeHobLib.inf
   DebugLib|MdePkg/Library/UefiDebugLibConOut/UefiDebugLibConOut.inf
   HashLib|SecurityPkg/Library/HashLibBaseCryptoRouter/HashLibBaseCryptoRouterDxe.inf
@@ -273,7 +270,7 @@
 
   SecurityPkg/Library/FmpAuthenticationLibPkcs7/FmpAuthenticationLibPkcs7.inf
   SecurityPkg/Library/FmpAuthenticationLibRsa2048Sha256/FmpAuthenticationLibRsa2048Sha256.inf
-
+  SecurityPkg/Library/SecTpmMeasurementLib/SecTpmMeasurementLib.inf
   SecurityPkg/Library/PeiTpmMeasurementLib/PeiTpmMeasurementLib.inf
   SecurityPkg/Library/DxeTpmMeasurementLib/DxeTpmMeasurementLib.inf
   SecurityPkg/Library/PlatformSecureLibNull/PlatformSecureLibNull.inf
@@ -281,27 +278,35 @@
   SecurityPkg/Library/TcgPpVendorLibNull/TcgPpVendorLibNull.inf
   SecurityPkg/Library/TcgEventLogRecordLib/TcgEventLogRecordLib.inf
 
-[Components.IA32, Components.X64, Components.ARM, Components.AARCH64]
+[Components.IA32, Components.X64, Components.AARCH64]
   SecurityPkg/Library/AuthVariableLib/AuthVariableLib.inf
   SecurityPkg/Library/SecureBootVariableLib/SecureBootVariableLib.inf
   SecurityPkg/Library/SecureBootVariableProvisionLib/SecureBootVariableProvisionLib.inf
   SecurityPkg/EnrollFromDefaultKeysApp/EnrollFromDefaultKeysApp.inf
   SecurityPkg/VariableAuthenticated/SecureBootDefaultKeysDxe/SecureBootDefaultKeysDxe.inf
 
-[Components.IA32, Components.X64, Components.AARCH64, Components.ARM]
+[Components.IA32, Components.X64, Components.AARCH64]
   #
   # Random Number Generator
   #
+  SecurityPkg/RandomNumberGenerator/RngPei/RngPei.inf
   SecurityPkg/RandomNumberGenerator/RngDxe/RngDxe.inf
 
-[Components.X64]
-  SecurityPkg/Library/HashLibTdx/HashLibTdx.inf
-  SecurityPkg/Library/SecTpmMeasurementLib/SecTpmMeasurementLibTdx.inf
-  SecurityPkg/Tcg/TdTcg2Dxe/TdTcg2Dxe.inf {
-    <LibraryClasses>
-      HashLib|SecurityPkg/Library/HashLibTdx/HashLibTdx.inf
-      NULL|SecurityPkg/Library/HashInstanceLibSha384/HashInstanceLibSha384.inf
-  }
+  #
+  # SPDM
+  #
+  SecurityPkg/DeviceSecurity/SpdmSecurityLib/SpdmSecurityLib.inf
+  SecurityPkg/DeviceSecurity/SpdmLib/SpdmDeviceSecretLibNull.inf
+  SecurityPkg/DeviceSecurity/SpdmLib/SpdmCryptLib.inf
+  SecurityPkg/DeviceSecurity/SpdmLib/SpdmCommonLib.inf
+  SecurityPkg/DeviceSecurity/SpdmLib/SpdmRequesterLib.inf
+  SecurityPkg/DeviceSecurity/SpdmLib/SpdmResponderLib.inf
+  SecurityPkg/DeviceSecurity/SpdmLib/SpdmSecuredMessageLib.inf
+  SecurityPkg/DeviceSecurity/SpdmLib/SpdmTransportMctpLib.inf
+  SecurityPkg/DeviceSecurity/SpdmLib/SpdmTransportPciDoeLib.inf
+  SecurityPkg/DeviceSecurity/OsStub/CryptlibWrapper/CryptlibWrapper.inf
+  SecurityPkg/DeviceSecurity/OsStub/PlatformLibWrapper/PlatformLibWrapper.inf
+  SecurityPkg/DeviceSecurity/OsStub/MemLibWrapper/MemLibWrapper.inf
 
 [Components.IA32, Components.X64]
   SecurityPkg/VariableAuthenticated/SecureBootConfigDxe/SecureBootConfigDxe.inf
@@ -368,6 +373,18 @@
   }
 
   #
+  # AMD SEV-SNP SVSM vTPM
+  #
+  SecurityPkg/Library/Tpm2DeviceLibDTpm/Tpm2DeviceLibDTpmSvsm.inf {
+    <LibraryClasses>
+      AmdSvsmLib|UefiCpuPkg/Library/AmdSvsmLibNull/AmdSvsmLibNull.inf
+  }
+  SecurityPkg/Library/Tpm2DeviceLibDTpm/Tpm2InstanceLibDTpmSvsm.inf {
+    <LibraryClasses>
+      AmdSvsmLib|UefiCpuPkg/Library/AmdSvsmLibNull/AmdSvsmLibNull.inf
+  }
+
+  #
   # Hash2
   #
   SecurityPkg/Hash2DxeCrypto/Hash2DxeCrypto.inf
@@ -405,7 +422,20 @@
   #
   SecurityPkg/FvReportPei/FvReportPei.inf
 
+[Components.AARCH64]
+  SecurityPkg/Tcg/Tcg2StandaloneMmArm/Tcg2StandaloneMmArm.inf
+  SecurityPkg/Tcg/Tcg2AcpiFfa/Tcg2AcpiFfa.inf
+  SecurityPkg/Tcg/Tcg2Config/Tcg2ConfigFfaPei.inf
+  SecurityPkg/Library/Tpm2DeviceLibFfa/Tpm2DeviceLibFfa.inf
+  SecurityPkg/Library/Tpm2DeviceLibFfa/Tpm2DeviceSecLibFfa.inf
+  SecurityPkg/Library/Tpm2DeviceLibFfa/Tpm2InstanceLibFfa.inf
+  SecurityPkg/Library/HashLibTpm2/HashLibTpm2PeilessSecLib.inf
+  SecurityPkg/Library/PeilessSecMeasureLib/PeilessSecMeasureLibNull.inf
+  SecurityPkg/Library/PeilessSecMeasureLib/PeilessSecMeasureLib.inf
+
 [BuildOptions]
-   MSFT:*_*_IA32_DLINK_FLAGS = /ALIGN:256
+  MSFT:*_*_IA32_DLINK_FLAGS = /ALIGN:256
+  MSFT:*_*_IA32_DLINK_XIPFLAGS = /ALIGN:256
+  CLANGPDB: *_*_IA32_DLINK_FLAGS = /ALIGN:256
   INTEL:*_*_IA32_DLINK_FLAGS = /ALIGN:256
         *_*_*_CC_FLAGS       = -D DISABLE_NEW_DEPRECATED_INTERFACES

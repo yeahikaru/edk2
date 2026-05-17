@@ -2,7 +2,7 @@
 #  Platform Initialization Lib
 #
 #  This module provides platform specific function to detect boot mode.
-#  Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2006 - 2024, Intel Corporation. All rights reserved.<BR>
 #
 #  SPDX-License-Identifier: BSD-2-Clause-Patent
 #
@@ -24,6 +24,7 @@
 
 [Sources]
   Cmos.c
+  Igvm.c
   MemDetect.c
   Platform.c
 
@@ -32,6 +33,7 @@
 
 [Sources.X64]
   IntelTdx.c
+  X64/Paging.nasm
 
 [Packages]
   EmbeddedPkg/EmbeddedPkg.dec
@@ -47,17 +49,24 @@
   HobLib
   QemuFwCfgLib
   QemuFwCfgSimpleParserLib
+  LocalApicLib
+  MemEncryptSevLib
   MemoryAllocationLib
   MtrrLib
   PcdLib
   PciLib
   PeiHardwareInfoLib
-
-[LibraryClasses.X64]
   TdxLib
+
+[Guids]
+  gEfiSmmSmramMemoryGuid
+  gEfiAcpiVariableGuid
+  gEfiIgvmDataHobGuid
 
 [Pcd]
   gEfiMdePkgTokenSpaceGuid.PcdPciExpressBaseAddress
+  gEfiMdeModulePkgTokenSpaceGuid.PcdUse1GPageTable
+  gEfiMdeModulePkgTokenSpaceGuid.PcdUse5LevelPageTable
 
 [FixedPcd]
   gUefiOvmfPkgTokenSpaceGuid.PcdOvmfWorkAreaBase
@@ -99,6 +108,14 @@
   gUefiOvmfPkgTokenSpaceGuid.PcdTdxAcceptPageSize
   gUefiOvmfPkgTokenSpaceGuid.PcdOvmfFlashNvStorageVariableBase
   gUefiOvmfPkgTokenSpaceGuid.PcdCfvRawDataSize
+
+  gUefiOvmfPkgTokenSpaceGuid.PcdOvmfEarlyMemDebugLogBase
+  gUefiOvmfPkgTokenSpaceGuid.PcdOvmfEarlyMemDebugLogSize
+
+  gUefiOvmfPkgTokenSpaceGuid.PcdOvmfIgvmParamBase
+  gUefiOvmfPkgTokenSpaceGuid.PcdOvmfIgvmParamSize
+  gUefiOvmfPkgTokenSpaceGuid.PcdOvmfIgvmHobBase
+  gUefiOvmfPkgTokenSpaceGuid.PcdOvmfIgvmHobSize
 
 [FeaturePcd]
   gEfiMdeModulePkgTokenSpaceGuid.PcdDxeIplSwitchToLongMode

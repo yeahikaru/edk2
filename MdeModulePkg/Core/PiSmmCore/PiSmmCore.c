@@ -1,7 +1,7 @@
 /** @file
   SMM Core Main Entry Point
 
-  Copyright (c) 2009 - 2019, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2023, Intel Corporation. All rights reserved.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -305,6 +305,8 @@ SmmReadyToBootHandler (
   EFI_STATUS  Status;
   EFI_HANDLE  SmmHandle;
 
+  PERF_CALLBACK_BEGIN (&gEfiEventReadyToBootGuid);
+
   //
   // Install SMM Ready To Boot protocol.
   //
@@ -318,6 +320,7 @@ SmmReadyToBootHandler (
 
   SmiHandlerUnRegister (DispatchHandle);
 
+  PERF_CALLBACK_END (&gEfiEventReadyToBootGuid);
   return Status;
 }
 
@@ -351,6 +354,8 @@ SmmReadyToLockHandler (
   UINTN       Index;
   EFI_HANDLE  SmmHandle;
   VOID        *Interface;
+
+  PERF_CALLBACK_BEGIN (&gEfiDxeSmmReadyToLockProtocolGuid);
 
   //
   // Unregister SMI Handlers that are no required after the SMM driver dispatch is stopped
@@ -408,6 +413,7 @@ SmmReadyToLockHandler (
 
   SmramProfileReadyToLock ();
 
+  PERF_CALLBACK_END (&gEfiDxeSmmReadyToLockProtocolGuid);
   return Status;
 }
 
@@ -441,6 +447,8 @@ SmmEndOfDxeHandler (
   EFI_HANDLE                     S3EntryHandle;
 
   DEBUG ((DEBUG_INFO, "SmmEndOfDxeHandler\n"));
+
+  PERF_CALLBACK_BEGIN (&gEfiEndOfDxeEventGroupGuid);
 
   //
   // Install SMM EndOfDxe protocol
@@ -479,6 +487,7 @@ SmmEndOfDxeHandler (
     }
   }
 
+  PERF_CALLBACK_END (&gEfiEndOfDxeEventGroupGuid);
   return EFI_SUCCESS;
 }
 
@@ -661,13 +670,18 @@ SmmEntryPoint (
   IN CONST EFI_SMM_ENTRY_CONTEXT  *SmmEntryContext
   )
 {
-  EFI_STATUS                  Status;
-  EFI_SMM_COMMUNICATE_HEADER  *CommunicateHeader;
-  BOOLEAN                     InLegacyBoot;
-  BOOLEAN                     IsOverlapped;
-  BOOLEAN                     IsOverUnderflow;
-  VOID                        *CommunicationBuffer;
-  UINTN                       BufferSize;
+  EFI_STATUS                    Status;
+  EFI_MM_COMMUNICATE_HEADER_V3  *CommunicateHeader;
+  EFI_SMM_COMMUNICATE_HEADER    *LegacyCommunicateHeader;
+  BOOLEAN                       InLegacyBoot;
+  BOOLEAN                       IsOverlapped;
+  VOID                          *CommunicationBuffer;
+  UINTN                         BufferSize;
+  EFI_GUID                      *CommGuid;
+  VOID                          *CommData;
+  UINTN                         CommHeaderSize;
+
+  PERF_FUNCTION_BEGIN ();
 
   //
   // Update SMST with contents of the SmmEntryContext structure
@@ -681,7 +695,9 @@ SmmEntryPoint (
   //
   // Call platform hook before Smm Dispatch
   //
+  PERF_START (NULL, "PlatformHookBeforeSmmDispatch", NULL, 0);
   PlatformHookBeforeSmmDispatch ();
+  PERF_END (NULL, "PlatformHookBeforeSmmDispatch", NULL, 0);
 
   //
   // Call memory management hook function
@@ -717,10 +733,8 @@ SmmEntryPoint (
       //
       // Check for over or underflows
       //
-      IsOverUnderflow = EFI_ERROR (SafeUintnSub (BufferSize, OFFSET_OF (EFI_SMM_COMMUNICATE_HEADER, Data), &BufferSize));
-
       if (!SmmIsBufferOutsideSmmValid ((UINTN)CommunicationBuffer, BufferSize) ||
-          IsOverlapped || IsOverUnderflow)
+          IsOverlapped || (BufferSize < OFFSET_OF (EFI_SMM_COMMUNICATE_HEADER, Data)))
       {
         //
         // If CommunicationBuffer is not in valid address scope,
@@ -731,25 +745,50 @@ SmmEntryPoint (
         gSmmCorePrivate->CommunicationBuffer = NULL;
         gSmmCorePrivate->ReturnStatus        = EFI_ACCESS_DENIED;
       } else {
-        CommunicateHeader = (EFI_SMM_COMMUNICATE_HEADER *)CommunicationBuffer;
-        // BufferSize was updated by the SafeUintnSub() call above.
-        Status = SmiManage (
-                   &CommunicateHeader->HeaderGuid,
-                   NULL,
-                   CommunicateHeader->Data,
-                   &BufferSize
-                   );
+        CommGuid = &((EFI_MM_COMMUNICATE_HEADER_V3 *)CommunicationBuffer)->HeaderGuid;
+        //
+        // Check if the signature matches EFI_MM_COMMUNICATE_HEADER_V3 definition
+        //
+        if (CompareGuid (CommGuid, &gEfiMmCommunicateHeaderV3Guid)) {
+          //
+          // If so, need to make sure the size is at least the size of the header
+          //
+          if (BufferSize < sizeof (EFI_MM_COMMUNICATE_HEADER_V3)) {
+            gSmmCorePrivate->CommunicationBuffer = NULL;
+            gSmmCorePrivate->ReturnStatus        = EFI_ACCESS_DENIED;
+            goto AsyncSmi;
+          }
+
+          CommunicateHeader = (EFI_MM_COMMUNICATE_HEADER_V3 *)CommunicationBuffer;
+          CommGuid          = &CommunicateHeader->MessageGuid;
+          CommData          = CommunicateHeader->MessageData;
+          CommHeaderSize    = sizeof (EFI_MM_COMMUNICATE_HEADER_V3);
+        } else {
+          LegacyCommunicateHeader = (EFI_SMM_COMMUNICATE_HEADER *)CommunicationBuffer;
+          CommGuid                = &LegacyCommunicateHeader->HeaderGuid;
+          CommData                = LegacyCommunicateHeader->Data;
+          CommHeaderSize          = OFFSET_OF (EFI_SMM_COMMUNICATE_HEADER, Data);
+        }
+
+        BufferSize -= CommHeaderSize;
+        Status      = SmiManage (
+                        CommGuid,
+                        NULL,
+                        CommData,
+                        &BufferSize
+                        );
         //
         // Update CommunicationBuffer, BufferSize and ReturnStatus
         // Communicate service finished, reset the pointer to CommBuffer to NULL
         //
-        gSmmCorePrivate->BufferSize          = BufferSize + OFFSET_OF (EFI_SMM_COMMUNICATE_HEADER, Data);
+        gSmmCorePrivate->BufferSize          = BufferSize + CommHeaderSize;
         gSmmCorePrivate->CommunicationBuffer = NULL;
         gSmmCorePrivate->ReturnStatus        = (Status == EFI_SUCCESS) ? EFI_SUCCESS : EFI_NOT_FOUND;
       }
     }
   }
 
+AsyncSmi:
   //
   // Process Asynchronous SMI sources
   //
@@ -758,7 +797,9 @@ SmmEntryPoint (
   //
   // Call platform hook after Smm Dispatch
   //
+  PERF_START (NULL, "PlatformHookAfterSmmDispatch", NULL, 0);
   PlatformHookAfterSmmDispatch ();
+  PERF_END (NULL, "PlatformHookAfterSmmDispatch", NULL, 0);
 
   //
   // If a legacy boot has occurred, then make sure gSmmCorePrivate is not accessed
@@ -769,6 +810,8 @@ SmmEntryPoint (
     //
     gSmmCorePrivate->InSmm = FALSE;
   }
+
+  PERF_FUNCTION_END ();
 }
 
 /**

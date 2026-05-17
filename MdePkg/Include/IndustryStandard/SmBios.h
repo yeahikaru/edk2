@@ -1,7 +1,9 @@
 /** @file
-  Industry Standard Definitions of SMBIOS Table Specification v3.6.0.
+  Industry Standard Definitions of SMBIOS Table Specification v3.8.0.
 
-Copyright (c) 2006 - 2021, Intel Corporation. All rights reserved.<BR>
+Copyright (c) Microsoft Corporation. All rights reserved.<BR>
+Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.<BR>
+Copyright (c) 2006 - 2024, Intel Corporation. All rights reserved.<BR>
 (C) Copyright 2015-2017 Hewlett Packard Enterprise Development LP<BR>
 (C) Copyright 2015 - 2019 Hewlett Packard Enterprise Development LP<BR>
 Copyright (c) 2022, AMD Incorporated. All rights reserved.<BR>
@@ -10,8 +12,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#ifndef __SMBIOS_STANDARD_H__
-#define __SMBIOS_STANDARD_H__
+#pragma once
 
 ///
 /// Reference SMBIOS 2.6, chapter 3.1.2.
@@ -27,6 +28,14 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 /// This number is not used for any other purpose by the SMBIOS specification.
 ///
 #define SMBIOS_HANDLE_PI_RESERVED  0xFFFE
+
+///
+/// Reference SMBIOS 3.6, chapter 6.1.2.
+/// Unless otherwise specified, when referring to another structure's handle, the value
+/// 0FFFFh is used to indicate that the referenced handle is not applicable or does not
+/// exist.
+///
+#define SMBIOS_HANDLE_INVALID  0xFFFF
 
 ///
 /// Reference SMBIOS 2.6, chapter 3.1.3.
@@ -482,6 +491,24 @@ typedef struct {
 ///
 /// System Enclosure or Chassis (Type 3).
 ///
+
+///
+/// Chassis - Height.
+///
+typedef enum {
+  ChassisHeightUnspecified   = 0x00,
+  ChassisHeightUseRackHeight = 0xFF  ///< Enclosure Height is specified at offset 16h+(n*m)
+} CHASSIS_HEIGHT;
+
+///
+/// Chassis - Rack Type.
+/// SMBIOS Spec 3.9.0 CR251 Additional Rack Types
+///
+typedef enum {
+  ChassisRackTypeUnspecified = 0x00,
+  ChassisRackTypeOU          = 0x01,
+} CHASSIS_RACK_TYPE;
+
 /// The information in this structure defines attributes of the system's mechanical enclosure(s).
 /// For example, if a system included a separate enclosure for its peripheral devices,
 /// two structures would be returned: one for the main, system enclosure and the second for
@@ -513,9 +540,11 @@ typedef struct {
   //
   // Since ContainedElements has a variable number of entries, must not define SKUNumber in
   // the structure.  Need to reference it by starting at offset 0x15 and adding
-  // (ContainedElementCount * ContainedElementRecordLength) bytes.
+  // (ContainedElementCount(n) * ContainedElementRecordLength(m)) bytes.
   //
-  // SMBIOS_TABLE_STRING         SKUNumber;
+  // SMBIOS_TABLE_STRING         SKUNumber;         ///< SMBIOS spec 2.7+ Offset 15h+(n*m)
+  // UINT8                       RackType;          ///< SMBIOS spec 3.9+ Offset 16h+(n*m) CR251
+  // UINT8                       RackHeight;        ///< SMBIOS spec 3.9+ Offset 17h+(n*m) CR251
 } SMBIOS_TABLE_TYPE3;
 
 ///
@@ -555,6 +584,7 @@ typedef enum {
   ProcessorFamilyM2                              = 0x13,
   ProcessorFamilyIntelCeleronM                   = 0x14,
   ProcessorFamilyIntelPentium4Ht                 = 0x15,
+  ProcessorFamilyIntel                           = 0x16,
   ProcessorFamilyAmdDuron                        = 0x18,
   ProcessorFamilyK5                              = 0x19,
   ProcessorFamilyK6                              = 0x1A,
@@ -706,6 +736,7 @@ typedef enum {
   ProcessorFamilyIntelCoreI5                     = 0xCD,
   ProcessorFamilyIntelCoreI3                     = 0xCE,
   ProcessorFamilyIntelCoreI9                     = 0xCF,
+  ProcessorFamilyIntelXeonD                      = 0xD0,  /// Smbios spec 3.8 updated this value
   ProcessorFamilyViaC7M                          = 0xD2,
   ProcessorFamilyViaC7D                          = 0xD3,
   ProcessorFamilyViaC7                           = 0xD4,
@@ -774,7 +805,15 @@ typedef enum {
   ProcessorFamilyQuadCoreLoongson3B  = 0x026E,
   ProcessorFamilyMultiCoreLoongson3B = 0x026F,
   ProcessorFamilyMultiCoreLoongson3C = 0x0270,
-  ProcessorFamilyMultiCoreLoongson3D = 0x0271
+  ProcessorFamilyMultiCoreLoongson3D = 0x0271,
+  ProcessorFamilyIntelCore3          = 0x0300,
+  ProcessorFamilyIntelCore5          = 0x0301,
+  ProcessorFamilyIntelCore7          = 0x0302,
+  ProcessorFamilyIntelCore9          = 0x0303,
+  ProcessorFamilyIntelCoreUltra3     = 0x0304,
+  ProcessorFamilyIntelCoreUltra5     = 0x0305,
+  ProcessorFamilyIntelCoreUltra7     = 0x0306,
+  ProcessorFamilyIntelCoreUltra9     = 0x0307
 } PROCESSOR_FAMILY2_DATA;
 
 ///
@@ -864,7 +903,23 @@ typedef enum {
   ProcessorUpgradeSocketLGA1211   = 0x45,
   ProcessorUpgradeSocketLGA2422   = 0x46,
   ProcessorUpgradeSocketLGA5773   = 0x47,
-  ProcessorUpgradeSocketBGA5773   = 0x48
+  ProcessorUpgradeSocketBGA5773   = 0x48,
+  ProcessorUpgradeSocketAM5       = 0x49,
+  ProcessorUpgradeSocketSP5       = 0x4A,
+  ProcessorUpgradeSocketSP6       = 0x4B,
+  ProcessorUpgradeSocketBGA883    = 0x4C,
+  ProcessorUpgradeSocketBGA1190   = 0x4D,
+  ProcessorUpgradeSocketBGA4129   = 0x4E,
+  ProcessorUpgradeSocketLGA4710   = 0x4F,
+  ProcessorUpgradeSocketLGA7529   = 0x50,
+  ProcessorUpgradeSocketBGA1964   = 0x51,
+  ProcessorUpgradeSocketBGA1792   = 0x52,
+  ProcessorUpgradeSocketBGA2049   = 0x53,
+  ProcessorUpgradeSocketBGA2551   = 0x54,
+  ProcessorUpgradeSocketLGA1851   = 0x55,
+  ProcessorUpgradeSocketBGA2114   = 0x56,
+  ProcessorUpgradeSocketBGA2833   = 0x57,
+  ProcessorUpgradeInvalid         = 0xFF
 } PROCESSOR_UPGRADE;
 
 ///
@@ -942,10 +997,26 @@ typedef union {
   UINT8    Data;
 } PROCESSOR_STATUS_DATA;
 
+#ifdef MDE_CPU_AARCH64
+// This structure assumes Arm64 SoC ID is supported
+typedef struct {
+  UINT16    SocId;
+  UINT8     SipId;
+  UINT8     SipBankIndex;
+  UINT32    SocRevision;
+} PROCESSOR_ID_DATA;
+#elif defined (MDE_CPU_IA32) || defined (MDE_CPU_X64)
 typedef struct {
   PROCESSOR_SIGNATURE        Signature;
   PROCESSOR_FEATURE_FLAGS    FeatureFlags;
 } PROCESSOR_ID_DATA;
+#else
+// Please define PROCESSOR_ID_DATA for your architecture
+typedef struct {
+  PROCESSOR_SIGNATURE        Signature;
+  PROCESSOR_FEATURE_FLAGS    FeatureFlags;
+} PROCESSOR_ID_DATA;
+#endif
 
 ///
 /// Processor Information (Type 4).
@@ -997,6 +1068,10 @@ typedef struct {
   // Add for smbios 3.6
   //
   UINT16                 ThreadEnabled;
+  //
+  // Add for smbios 3.8
+  //
+  SMBIOS_TABLE_STRING    SocketType;
 } SMBIOS_TABLE_TYPE4;
 
 ///
@@ -1126,6 +1201,40 @@ typedef struct {
 } SMBIOS_TABLE_TYPE6;
 
 ///
+/// Cache Information - Configuration.
+///
+typedef struct {
+  UINT16    CacheLevel    : 3;
+  UINT16    CacheSocketed : 1;
+  UINT16    Reserved      : 1;
+  UINT16    Location      : 2;
+  UINT16    Enabled       : 1;
+  UINT16    OperationMode : 2;
+  UINT16    Reserved2     : 6;
+} SMBIOS_CACHE_CONFIGURATION_DATA;
+
+///
+/// Cache Information - Size
+///
+typedef struct {
+  UINT16    Size           : 15;
+  UINT16    Granularity64K : 1;
+} SMBIOS_CACHE_SIZE;
+
+/// Maximum cache size representable in CACHE_SIZE at 1 KiB granularity
+#define SMBIOS_CACHE_SIZE_MAX_SIZE_1K_GRANULARITY  32767
+/// Maximum cache size representable in CACHE_SIZE at 64 KiB granularity
+#define SMBIOS_CACHE_SIZE_MAX_SIZE_64K_GRANULARITY  (32767 * 64)
+
+///
+/// Cache Information - Size 2
+///
+typedef struct {
+  UINT32    Size           : 31;
+  UINT32    Granularity64K : 1;
+} SMBIOS_CACHE_SIZE_2;
+
+///
 /// Cache Information - SRAM Type.
 ///
 typedef struct {
@@ -1194,8 +1303,8 @@ typedef struct {
   SMBIOS_STRUCTURE        Hdr;
   SMBIOS_TABLE_STRING     SocketDesignation;
   UINT16                  CacheConfiguration;
-  UINT16                  MaximumCacheSize;
-  UINT16                  InstalledSize;
+  SMBIOS_CACHE_SIZE       MaximumCacheSize;
+  SMBIOS_CACHE_SIZE       InstalledSize;
   CACHE_SRAM_TYPE_DATA    SupportedSRAMType;
   CACHE_SRAM_TYPE_DATA    CurrentSRAMType;
   UINT8                   CacheSpeed;
@@ -1205,8 +1314,8 @@ typedef struct {
   //
   // Add for smbios 3.1.0
   //
-  UINT32                  MaximumCacheSize2;
-  UINT32                  InstalledSize2;
+  SMBIOS_CACHE_SIZE_2     MaximumCacheSize2;
+  SMBIOS_CACHE_SIZE_2     InstalledSize2;
 } SMBIOS_TABLE_TYPE7;
 
 ///
@@ -1501,7 +1610,7 @@ typedef struct {
   UINT8    AsyncSurpriseRemoval    : 1;
   UINT8    FlexbusSlotCxl10Capable : 1;
   UINT8    FlexbusSlotCxl20Capable : 1;
-  UINT8    Reserved                : 1; ///< Set to 0.
+  UINT8    FlexbusSlotCxl30Capable : 1; /// SMBIOS spec 3.7.0 updated CXL 3.0 support
 } MISC_SLOT_CHARACTERISTICS2;
 
 ///
@@ -1707,13 +1816,22 @@ typedef enum {
 /// System Event Log - Variable Data Format Types.
 ///
 typedef enum {
-  EventLogVariableNone                       = 0x00,
-  EventLogVariableHandle                     = 0x01,
-  EventLogVariableMutilEvent                 = 0x02,
-  EventLogVariableMutilEventHandle           = 0x03,
-  EventLogVariablePOSTResultBitmap           = 0x04,
-  EventLogVariableSysManagementType          = 0x05,
-  EventLogVariableMutliEventSysManagmentType = 0x06,
+  EventLogVariableNone       = 0x00,
+  EventLogVariableHandle     = 0x01,
+  EventLogVariableMultiEvent = 0x02,
+  // This misspelling is kept temporarily for backwards compatibility and will
+  // be removed in a future PR. Consumers must migrate to the new definition
+  EventLogVariableMutilEvent       = EventLogVariableMultiEvent,
+  EventLogVariableMultiEventHandle = 0x03,
+  // This misspelling is kept temporarily for backwards compatibility and will
+  // be removed in a future PR. Consumers must migrate to the new definition
+  EventLogVariableMutilEventHandle            = EventLogVariableMultiEventHandle,
+  EventLogVariablePOSTResultBitmap            = 0x04,
+  EventLogVariableSysManagementType           = 0x05,
+  EventLogVariableMultiEventSysManagementType = 0x06,
+  // This misspelling is kept temporarily for backwards compatibility and will
+  // be removed in a future PR. Consumers must migrate to the new definition
+  EventLogVariableMutliEventSysManagmentType = EventLogVariableMultiEventSysManagementType,
   EventLogVariableUnused                     = 0x07,
   EventLogVariableOEMAssigned                = 0x80
 } EVENT_LOG_VARIABLE_DATA;
@@ -1835,7 +1953,10 @@ typedef enum {
   MemoryFormFactorSodimm          = 0x0D,
   MemoryFormFactorSrimm           = 0x0E,
   MemoryFormFactorFbDimm          = 0x0F,
-  MemoryFormFactorDie             = 0x10
+  MemoryFormFactorDie             = 0x10,
+  MemoryFormFactorCamm            = 0x11,
+  MemoryFormFactorCuDimm          = 0x12, ///< SMBIOS spec 3.9.0 CR244
+  MemoryFormFactorCsoDimm         = 0x13  ///< SMBIOS spec 3.9.0 CR244
 } MEMORY_FORM_FACTOR;
 
 ///
@@ -1874,7 +1995,8 @@ typedef enum {
   MemoryTypeHBM2                     = 0x21,
   MemoryTypeDdr5                     = 0x22,
   MemoryTypeLpddr5                   = 0x23,
-  MemoryTypeHBM3                     = 0x24
+  MemoryTypeHBM3                     = 0x24,
+  MemoryTypeMrDimm                   = 0x25  ///< SMBIOS spec 3.9.0 CR248
 } MEMORY_DEVICE_TYPE;
 
 ///
@@ -1913,7 +2035,8 @@ typedef enum {
   // This definition is updated to represent Intel
   // Optane DC Persistent Memory in SMBIOS spec 3.4.0
   //
-  MemoryTechnologyIntelOptanePersistentMemory = 0x07
+  MemoryTechnologyIntelOptanePersistentMemory = 0x07,
+  MemoryTechnologyMrDimmDeprecated            = 0x08 ///< SMBIOS spec 3.9.0 CR248
 } MEMORY_DEVICE_TECHNOLOGY;
 
 ///
@@ -2004,18 +2127,28 @@ typedef struct {
   //
   UINT32                                     ExtendedSpeed;
   UINT32                                     ExtendedConfiguredMemorySpeed;
+  //
+  // Add for smbios 3.7.0
+  //
+  UINT16                                     Pmic0ManufacturerID;
+  UINT16                                     Pmic0RevisionNumber;
+  UINT16                                     RcdManufacturerID;
+  UINT16                                     RcdRevisionNumber;
 } SMBIOS_TABLE_TYPE17;
 
 ///
 /// 32-bit Memory Error Information - Error Type.
 ///
 typedef enum {
-  MemoryErrorOther            = 0x01,
-  MemoryErrorUnknown          = 0x02,
-  MemoryErrorOk               = 0x03,
-  MemoryErrorBadRead          = 0x04,
-  MemoryErrorParity           = 0x05,
-  MemoryErrorSigleBit         = 0x06,
+  MemoryErrorOther     = 0x01,
+  MemoryErrorUnknown   = 0x02,
+  MemoryErrorOk        = 0x03,
+  MemoryErrorBadRead   = 0x04,
+  MemoryErrorParity    = 0x05,
+  MemoryErrorSingleBit = 0x06,
+  // This misspelling is kept temporarily for backwards compatibility and will
+  // be removed in a future PR. Consumers must migrate to the new definition
+  MemoryErrorSigleBit         = MemoryErrorSingleBit,
   MemoryErrorDoubleBit        = 0x07,
   MemoryErrorMultiBit         = 0x08,
   MemoryErrorNibble           = 0x09,
@@ -2681,6 +2814,22 @@ typedef struct {
 /// 00h - 3Fh: MCTP Host Interfaces
 ///
 typedef enum {
+  // MCTP Host Interface type identifiers as defined in DSP0239
+  MCHostInterfaceTypeKCS                                 = 0x02,
+  MCHostInterfaceType8250_UARTRegisterCompatible         = 0x03,
+  MCHostInterfaceType16450_UARTRegisterCompatible        = 0x04,
+  MCHostInterfaceType16550_16550A_UARTRegisterCompatible = 0x05,
+  MCHostInterfaceType16650_16650A_UARTRegisterCompatible = 0x06,
+  MCHostInterfaceType16750_16750A_UARTRegisterCompatible = 0x07,
+  MCHostInterfaceType16850_16850A_UARTRegisterCompatible = 0x08,
+  MCHostInterfaceTypeI2C_SMBUS                           = 0x09,
+  MCHostInterfaceTypeI3C                                 = 0x0A,
+  MCHostInterfaceTypePCIeVDM                             = 0x0B,
+  MCHostInterfaceTypeMMBI                                = 0x0C,
+  MCHostInterfaceTypePCC                                 = 0x0D,
+  MCHostInterfaceTypeUCIe                                = 0x0E,
+  MCHostInterfaceTypeUSB                                 = 0x0F,
+
   MCHostInterfaceTypeNetworkHostInterface = 0x40,
   MCHostInterfaceTypeOemDefined           = 0xF0
 } MC_HOST_INTERFACE_TYPE;
@@ -2961,5 +3110,3 @@ typedef union {
 } SMBIOS_STRUCTURE_POINTER;
 
 #pragma pack()
-
-#endif

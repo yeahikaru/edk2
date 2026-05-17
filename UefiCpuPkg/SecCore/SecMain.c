@@ -2,11 +2,45 @@
   C functions in SEC
 
   Copyright (c) 2008 - 2019, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2025, Ventana Micro Systems Inc. All rights reserved.<BR>
+
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
 #include "SecMain.h"
+
+#if defined (MDE_CPU_IA32) || defined (MDE_CPU_X64)
+
+typedef struct _SEC_IDT_TABLE {
+  //
+  // Reserved 8 bytes preceding IDT to store EFI_PEI_SERVICES**, since IDT base
+  // address should be 8-byte alignment.
+  // Note: For IA32, only the 4 bytes immediately preceding IDT is used to store
+  // EFI_PEI_SERVICES**
+  //
+  UINT64                      PeiService;
+  IA32_IDT_GATE_DESCRIPTOR    IdtTable[X86_CPU_INTERRUPT_NUM];
+} SEC_IDT_TABLE;
+
+//
+// These are IDT entries pointing to 10:FFFFFFE4h.
+//
+UINT64  mIdtEntryTemplate = 0xffff8e000010ffe4ULL;
+
+/**
+  TemporaryRamDone() disables the use of Temporary RAM. If present, this service is invoked
+  by the PEI Foundation after the EFI_PEI_PERMANENT_MEMORY_INSTALLED_PPI is installed.
+
+  @retval EFI_SUCCESS           Use of Temporary RAM was disabled.
+  @retval EFI_INVALID_PARAMETER Temporary RAM could not be disabled.
+
+**/
+EFI_STATUS
+EFIAPI
+SecTemporaryRamDone (
+  VOID
+  );
 
 EFI_PEI_TEMPORARY_RAM_DONE_PPI  gSecTemporaryRamDonePpi = {
   SecTemporaryRamDone
@@ -34,48 +68,18 @@ EFI_PEI_PPI_DESCRIPTOR  mPeiSecPlatformInformationPpi[] = {
     &mSecPlatformInformationPpi
   }
 };
-
-/**
-  Migrates the Global Descriptor Table (GDT) to permanent memory.
-
-  @retval   EFI_SUCCESS           The GDT was migrated successfully.
-  @retval   EFI_OUT_OF_RESOURCES  The GDT could not be migrated due to lack of available memory.
-
-**/
-EFI_STATUS
-MigrateGdt (
-  VOID
-  )
-{
-  EFI_STATUS       Status;
-  UINTN            GdtBufferSize;
-  IA32_DESCRIPTOR  Gdtr;
-  VOID             *GdtBuffer;
-
-  AsmReadGdtr ((IA32_DESCRIPTOR *)&Gdtr);
-  GdtBufferSize = sizeof (IA32_SEGMENT_DESCRIPTOR) -1 + Gdtr.Limit + 1;
-
-  Status =  PeiServicesAllocatePool (
-              GdtBufferSize,
-              &GdtBuffer
-              );
-  ASSERT (GdtBuffer != NULL);
-  if (EFI_ERROR (Status)) {
-    return EFI_OUT_OF_RESOURCES;
+#else
+EFI_PEI_PPI_DESCRIPTOR  mPeiSecPlatformInformationPpi[] = {
+  {
+    //
+    // SecPerformance PPI notify descriptor.
+    //
+    EFI_PEI_PPI_DESCRIPTOR_NOTIFY_CALLBACK,
+    &gPeiSecPerformancePpiGuid,
+    (VOID *)(UINTN)SecPerformancePpiCallBack
   }
-
-  GdtBuffer = ALIGN_POINTER (GdtBuffer, sizeof (IA32_SEGMENT_DESCRIPTOR));
-  CopyMem (GdtBuffer, (VOID *)Gdtr.Base, Gdtr.Limit + 1);
-  Gdtr.Base = (UINTN)GdtBuffer;
-  AsmWriteGdtr (&Gdtr);
-
-  return EFI_SUCCESS;
-}
-
-//
-// These are IDT entries pointing to 10:FFFFFFE4h.
-//
-UINT64  mIdtEntryTemplate = 0xffff8e000010ffe4ULL;
+};
+#endif
 
 /**
   Caller provided function to be invoked at the end of InitializeDebugAgent().
@@ -153,9 +157,6 @@ SecStartup (
   )
 {
   EFI_SEC_PEI_HAND_OFF  SecCoreData;
-  IA32_DESCRIPTOR       IdtDescriptor;
-  SEC_IDT_TABLE         IdtTableInStack;
-  UINT32                Index;
   UINT32                PeiStackSize;
   EFI_STATUS            Status;
 
@@ -194,6 +195,11 @@ SecStartup (
   //
   InitializeFloatingPointUnits ();
 
+ #if defined (MDE_CPU_IA32) || defined (MDE_CPU_X64)
+  IA32_DESCRIPTOR  IdtDescriptor;
+  SEC_IDT_TABLE    IdtTableInStack;
+  UINT32           Index;
+
   // |-------------------|---->
   // |IDT Table          |
   // |-------------------|
@@ -210,7 +216,7 @@ SecStartup (
   // |-------------------|---->  TempRamBase
 
   IdtTableInStack.PeiService = 0;
-  for (Index = 0; Index < SEC_IDT_ENTRY_COUNT; Index++) {
+  for (Index = 0; Index < X86_CPU_INTERRUPT_NUM; Index++) {
     ZeroMem ((VOID *)&IdtTableInStack.IdtTable[Index], sizeof (IA32_IDT_GATE_DESCRIPTOR));
     CopyMem ((VOID *)&IdtTableInStack.IdtTable[Index], (VOID *)&mIdtEntryTemplate, sizeof (UINT64));
   }
@@ -219,6 +225,7 @@ SecStartup (
   IdtDescriptor.Limit = (UINT16)(sizeof (IdtTableInStack.IdtTable) - 1);
 
   AsmWriteIdtr (&IdtDescriptor);
+ #endif
 
   //
   // Setup the default exception handlers
@@ -431,78 +438,4 @@ SecStartupPhase2 (
   // Should not come here.
   //
   UNREACHABLE ();
-}
-
-/**
-  TemporaryRamDone() disables the use of Temporary RAM. If present, this service is invoked
-  by the PEI Foundation after the EFI_PEI_PERMANANT_MEMORY_INSTALLED_PPI is installed.
-
-  @retval EFI_SUCCESS           Use of Temporary RAM was disabled.
-  @retval EFI_INVALID_PARAMETER Temporary RAM could not be disabled.
-
-**/
-EFI_STATUS
-EFIAPI
-SecTemporaryRamDone (
-  VOID
-  )
-{
-  EFI_STATUS              Status;
-  EFI_STATUS              Status2;
-  UINTN                   Index;
-  BOOLEAN                 State;
-  EFI_PEI_PPI_DESCRIPTOR  *PeiPpiDescriptor;
-  REPUBLISH_SEC_PPI_PPI   *RepublishSecPpiPpi;
-
-  //
-  // Republish Sec Platform Information(2) PPI
-  //
-  RepublishSecPlatformInformationPpi ();
-
-  //
-  // Re-install SEC PPIs using a PEIM produced service if published
-  //
-  for (Index = 0, Status = EFI_SUCCESS; Status == EFI_SUCCESS; Index++) {
-    Status = PeiServicesLocatePpi (
-               &gRepublishSecPpiPpiGuid,
-               Index,
-               &PeiPpiDescriptor,
-               (VOID **)&RepublishSecPpiPpi
-               );
-    if (!EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_INFO, "Calling RepublishSecPpi instance %d.\n", Index));
-      Status2 = RepublishSecPpiPpi->RepublishSecPpis ();
-      ASSERT_EFI_ERROR (Status2);
-    }
-  }
-
-  //
-  // Migrate DebugAgentContext.
-  //
-  InitializeDebugAgent (DEBUG_AGENT_INIT_POSTMEM_SEC, NULL, NULL);
-
-  //
-  // Disable interrupts and save current interrupt state
-  //
-  State = SaveAndDisableInterrupts ();
-
-  //
-  // Migrate GDT before NEM near down
-  //
-  if (PcdGetBool (PcdMigrateTemporaryRamFirmwareVolumes)) {
-    Status = MigrateGdt ();
-    ASSERT_EFI_ERROR (Status);
-  }
-
-  //
-  // Disable Temporary RAM after Stack and Heap have been migrated at this point.
-  //
-  SecPlatformDisableTemporaryMemory ();
-
-  //
-  // Restore original interrupt state
-  //
-  SetInterruptState (State);
-
-  return EFI_SUCCESS;
 }

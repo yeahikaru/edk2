@@ -72,6 +72,13 @@ EfiPxeBcStart (
     return EFI_UNSUPPORTED;
   }
 
+  REPORT_STATUS_CODE_WITH_EXTENDED_DATA (
+    EFI_PROGRESS_CODE,
+    EFI_IO_BUS_IP_NETWORK | EFI_IOB_PC_RECONFIG,
+    (VOID *)&(Mode->UsingIpv6),
+    sizeof (Mode->UsingIpv6)
+    );
+
   if (Mode->UsingIpv6) {
     AsciiPrint ("\n>>Start PXE over IPv6");
     //
@@ -2328,7 +2335,7 @@ EFI_PXE_BASE_CODE_CALLBACK_PROTOCOL  gPxeBcCallBackTemplate = {
                                       Buffer. On output with a return code of EFI_BUFFER_TOO_SMALL,
                                       the size of Buffer required to retrieve the requested file.
   @param[in]      Buffer              The memory buffer to transfer the file to. IF Buffer is NULL,
-                                      then no the size of the requested file is returned in
+                                      then the size of the requested file is returned in
                                       BufferSize.
 
   @retval EFI_SUCCESS                 The file was loaded.

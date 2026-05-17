@@ -227,6 +227,7 @@ Ip6ConfigStartStatefulAutoConfig (
 
   if (Instance->Dhcp6SbNotifyEvent != NULL) {
     gBS->CloseEvent (Instance->Dhcp6SbNotifyEvent);
+    Instance->Dhcp6SbNotifyEvent = NULL;
   }
 
   Status = gBS->OpenProtocol (
@@ -989,7 +990,7 @@ Ip6ConfigSetManualAddress (
     for (Index1 = 0; Index1 < NewAddressCount; Index1++, NewAddress++) {
       if (NetIp6IsLinkLocalAddr (&NewAddress->Address)    ||
           !NetIp6IsValidUnicast (&NewAddress->Address)    ||
-          (NewAddress->PrefixLength > 128)
+          (NewAddress->PrefixLength > IP6_PREFIX_MAX)
           )
       {
         //
@@ -2276,6 +2277,13 @@ Ip6ConfigInitInstance (
   UINTN                 Index;
   UINT16                IfIndex;
   IP6_CONFIG_DATA_ITEM  *DataItem;
+  UINT32                Random;
+
+  Status = PseudoRandomU32 (&Random);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "%a failed to generate random number: %r\n", __func__, Status));
+    return Status;
+  }
 
   IpSb = IP6_SERVICE_FROM_IP6_CONFIG_INSTANCE (Instance);
 
@@ -2381,7 +2389,7 @@ Ip6ConfigInitInstance (
     // The NV variable is not set, so generate a random IAID, and write down the
     // fresh new configuration as the NV variable now.
     //
-    Instance->IaId = NET_RANDOM (NetRandomInitSeed ());
+    Instance->IaId = Random;
 
     for (Index = 0; Index < IpSb->SnpMode.HwAddressSize; Index++) {
       Instance->IaId |= (IpSb->SnpMode.CurrentAddress.Addr[Index] << ((Index << 3) & 31));

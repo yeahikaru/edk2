@@ -10,79 +10,10 @@
   - linux//Documentation/devicetree/bindings/interrupt-controller/arm%2Cgic.yaml
 **/
 
+#include <Library/BaseLib.h>
+#include <Library/FdtLib.h>
 #include <FdtHwInfoParserInclude.h>
 #include "FdtUtility.h"
-
-/** Get the interrupt Id of an interrupt described in a fdt.
-
-  Data must describe a GIC interrupt. A GIC interrupt is on at least
-  3 UINT32 cells.
-  This function DOES NOT SUPPORT extended SPI range and extended PPI range.
-
-  @param [in]  Data   Pointer to the first cell of an "interrupts" property.
-
-  @retval  The interrupt id.
-**/
-UINT32
-EFIAPI
-FdtGetInterruptId (
-  UINT32 CONST  *Data
-  )
-{
-  UINT32  IrqType;
-  UINT32  IrqId;
-
-  ASSERT (Data != NULL);
-
-  IrqType = fdt32_to_cpu (Data[IRQ_TYPE_OFFSET]);
-  IrqId   = fdt32_to_cpu (Data[IRQ_NUMBER_OFFSET]);
-
-  switch (IrqType) {
-    case DT_SPI_IRQ:
-      IrqId += SPI_OFFSET;
-      break;
-
-    case DT_PPI_IRQ:
-      IrqId += PPI_OFFSET;
-      break;
-
-    default:
-      ASSERT (0);
-      IrqId = 0;
-  }
-
-  return IrqId;
-}
-
-/** Get the ACPI interrupt flags of an interrupt described in a fdt.
-
-  Data must describe a GIC interrupt. A GIC interrupt is on at least
-  3 UINT32 cells.
-
-  PPI interrupt cpu mask on bits [15:8] are ignored.
-
-  @param [in]  Data   Pointer to the first cell of an "interrupts" property.
-
-  @retval  The interrupt flags (for ACPI).
-**/
-UINT32
-EFIAPI
-FdtGetInterruptFlags (
-  UINT32 CONST  *Data
-  )
-{
-  UINT32  IrqFlags;
-  UINT32  AcpiIrqFlags;
-
-  ASSERT (Data != NULL);
-
-  IrqFlags = fdt32_to_cpu (Data[IRQ_FLAGS_OFFSET]);
-
-  AcpiIrqFlags  = DT_IRQ_IS_EDGE_TRIGGERED (IrqFlags) ? BIT0 : 0;
-  AcpiIrqFlags |= DT_IRQ_IS_ACTIVE_LOW (IrqFlags) ? BIT1 : 0;
-
-  return AcpiIrqFlags;
-}
 
 /** Check whether a node has the input name.
 
@@ -117,7 +48,7 @@ FdtNodeHasName (
   Length = (UINT32)AsciiStrLen (SearchName);
 
   // Get the address of the node name.
-  NodeName = fdt_offset_ptr (Fdt, Node + FDT_TAGSIZE, Length + 1);
+  NodeName = FdtOffsetPointer (Fdt, Node + FDT_TAGSIZE, Length + 1);
   if (NodeName == NULL) {
     return FALSE;
   }
@@ -180,13 +111,13 @@ FdtNodeIsCompatible (
   CompatibleTable = ((COMPATIBILITY_INFO *)CompatInfo)->CompatTable;
 
   // Get the "compatible" property.
-  Prop = fdt_getprop (Fdt, Node, "compatible", &PropLen);
+  Prop = FdtGetProp (Fdt, Node, "compatible", &PropLen);
   if ((Prop == NULL) || (PropLen < 0)) {
     return FALSE;
   }
 
   for (Index = 0; Index < Count; Index++) {
-    if (fdt_stringlist_contains (
+    if (FdtStringListContains (
           Prop,
           PropLen,
           CompatibleTable[Index].CompatStr
@@ -227,7 +158,7 @@ FdtNodeHasProperty (
     return FALSE;
   }
 
-  Prop = fdt_getprop (Fdt, Node, PropertyName, &Size);
+  Prop = FdtGetProp (Fdt, Node, PropertyName, &Size);
   if ((Prop == NULL) || (Size < 0)) {
     return FALSE;
   }
@@ -288,7 +219,7 @@ FdtGetNextCondNode (
 
   CurrNode = *Node;
   do {
-    CurrNode = fdt_next_node (Fdt, CurrNode, Depth);
+    CurrNode = FdtNextNode (Fdt, CurrNode, Depth);
     if ((CurrNode == -FDT_ERR_NOTFOUND) ||
         (*Depth < 0))
     {
@@ -362,9 +293,9 @@ FdtGetNextCondNodeInBranch (
   // First, check the Node is in the sub-nodes of the branch.
   // This allows to find the relative depth of Node in the branch.
   if (CurrNode != *Node) {
-    for (CurrNode = fdt_next_node (Fdt, CurrNode, &Depth);
+    for (CurrNode = FdtNextNode (Fdt, CurrNode, &Depth);
          (CurrNode >= 0) && (Depth > 0);
-         CurrNode = fdt_next_node (Fdt, CurrNode, &Depth))
+         CurrNode = FdtNextNode (Fdt, CurrNode, &Depth))
     {
       if (CurrNode == *Node) {
         // Node found.
@@ -736,18 +667,18 @@ FdtGetIntcParentNode (
 
   while (TRUE) {
     // Check whether the node has the "interrupt-controller" property.
-    Prop = fdt_getprop (Fdt, Node, "interrupt-controller", &Size);
+    Prop = FdtGetProp (Fdt, Node, "interrupt-controller", &Size);
     if ((Prop != NULL) && (Size >= 0)) {
       // The interrupt-controller has been found.
       *IntcNode = Node;
       return EFI_SUCCESS;
     } else {
       // Check whether the node has the "interrupt-parent" property.
-      PHandle = fdt_getprop (Fdt, Node, "interrupt-parent", &Size);
+      PHandle = FdtGetProp (Fdt, Node, "interrupt-parent", &Size);
       if ((PHandle != NULL) && (Size == sizeof (UINT32))) {
         // The phandle of the interrupt-controller has been found.
         // Search the node having this phandle and return it.
-        Node = fdt_node_offset_by_phandle (Fdt, fdt32_to_cpu (*PHandle));
+        Node = FdtNodeOffsetByPhandle (Fdt, Fdt32ToCpu (*PHandle));
         if (Node < 0) {
           ASSERT (0);
           return EFI_ABORTED;
@@ -767,7 +698,7 @@ FdtGetIntcParentNode (
     }
 
     // Get the parent of the node.
-    Node = fdt_parent_offset (Fdt, Node);
+    Node = FdtParentOffset (Fdt, Node);
     if (Node < 0) {
       // An error occurred.
       ASSERT (0);
@@ -809,14 +740,14 @@ FdtGetInterruptCellsInfo (
     return EFI_INVALID_PARAMETER;
   }
 
-  Data = fdt_getprop (Fdt, IntcNode, "#interrupt-cells", &Size);
+  Data = FdtGetProp (Fdt, IntcNode, "#interrupt-cells", &Size);
   if ((Data == NULL) || (Size != sizeof (UINT32))) {
     // If error or not on one UINT32 cell.
     ASSERT (0);
     return EFI_ABORTED;
   }
 
-  *IntCells = fdt32_to_cpu (*Data);
+  *IntCells = Fdt32ToCpu (*Data);
 
   return EFI_SUCCESS;
 }
@@ -858,7 +789,7 @@ FdtGetAddressInfo (
   }
 
   if (AddressCells != NULL) {
-    *AddressCells = fdt_address_cells (Fdt, Node);
+    *AddressCells = FdtAddressCells (Fdt, Node);
     if (*AddressCells < 0) {
       ASSERT (0);
       return EFI_ABORTED;
@@ -866,7 +797,7 @@ FdtGetAddressInfo (
   }
 
   if (SizeCells != NULL) {
-    *SizeCells = fdt_size_cells (Fdt, Node);
+    *SizeCells = FdtSizeCells (Fdt, Node);
     if (*SizeCells < 0) {
       ASSERT (0);
       return EFI_ABORTED;
@@ -912,7 +843,7 @@ FdtGetParentAddressInfo (
     return EFI_INVALID_PARAMETER;
   }
 
-  Node = fdt_parent_offset (Fdt, Node);
+  Node = FdtParentOffset (Fdt, Node);
   if (Node < 0) {
     // End of the tree, or an error occurred.
     ASSERT (0);

@@ -7,10 +7,10 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#include "WinNtInclude.h"
-
 #ifndef __GNUC__
+#define RUNTIME_FUNCTION  _WINNT_DUP_RUNTIME_FUNCTION
 #include <windows.h>
+#undef RUNTIME_FUNCTION
 #include <io.h>
 #endif
 #include <stdio.h>

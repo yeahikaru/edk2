@@ -181,7 +181,6 @@ class Check(object):
 
     # General Checking
     def GeneralCheck(self):
-        self.GeneralCheckNonAcsii()
         self.UniCheck()
         self.GeneralCheckNoTab()
         self.GeneralCheckLineEnding()
@@ -237,25 +236,6 @@ class Check(object):
                         if Line.replace('\r', '').replace('\n', '').endswith(' '):
                             OtherMsg = "File %s has trailing white spaces at line %s" % (Record[1], IndexOfLine)
                             EccGlobalData.gDb.TblReport.Insert(ERROR_GENERAL_CHECK_TRAILING_WHITE_SPACE_LINE, OtherMsg=OtherMsg, BelongsToTable='File', BelongsToItem=Record[0])
-
-    # Check whether file has non ACSII char
-    def GeneralCheckNonAcsii(self):
-        if EccGlobalData.gConfig.GeneralCheckNonAcsii == '1' or EccGlobalData.gConfig.GeneralCheckAll == '1' or EccGlobalData.gConfig.CheckAll == '1':
-            EdkLogger.quiet("Checking Non-ACSII char in file ...")
-            SqlCommand = """select ID, FullPath, ExtName from File where ExtName in ('.dec', '.inf', '.dsc', 'c', 'h')"""
-            RecordSet = EccGlobalData.gDb.TblFile.Exec(SqlCommand)
-            for Record in RecordSet:
-                if Record[2].upper() not in EccGlobalData.gConfig.BinaryExtList:
-                    op = open(Record[1]).readlines()
-                    IndexOfLine = 0
-                    for Line in op:
-                        IndexOfLine += 1
-                        IndexOfChar = 0
-                        for Char in Line:
-                            IndexOfChar += 1
-                            if ord(Char) > 126:
-                                OtherMsg = "File %s has Non-ASCII char at line %s column %s" % (Record[1], IndexOfLine, IndexOfChar)
-                                EccGlobalData.gDb.TblReport.Insert(ERROR_GENERAL_CHECK_NON_ACSII, OtherMsg=OtherMsg, BelongsToTable='File', BelongsToItem=Record[0])
 
     # C Function Layout Checking
     def FunctionLayoutCheck(self):
@@ -593,7 +573,6 @@ class Check(object):
 
     # Include file checking
     def IncludeFileCheck(self):
-        self.IncludeFileCheckIfndef()
         self.IncludeFileCheckData()
         self.IncludeFileCheckSameName()
 
@@ -622,19 +601,6 @@ class Check(object):
                         Path = mws.relpath(Item[1], EccGlobalData.gWorkspace)
                         if not EccGlobalData.gException.IsException(ERROR_INCLUDE_FILE_CHECK_NAME, Path):
                             EccGlobalData.gDb.TblReport.Insert(ERROR_INCLUDE_FILE_CHECK_NAME, OtherMsg="The file name for [%s] is duplicate" % Path, BelongsToTable='File', BelongsToItem=Item[0])
-
-    # Check whether all include file contents is guarded by a #ifndef statement.
-    def IncludeFileCheckIfndef(self):
-        if EccGlobalData.gConfig.IncludeFileCheckIfndefStatement == '1' or EccGlobalData.gConfig.IncludeFileCheckAll == '1' or EccGlobalData.gConfig.CheckAll == '1':
-            EdkLogger.quiet("Checking header file ifndef ...")
-
-#            for Dirpath, Dirnames, Filenames in self.WalkTree():
-#                for F in Filenames:
-#                    if os.path.splitext(F)[1] in ('.h'):
-#                        FullName = os.path.join(Dirpath, F)
-#                        MsgList = c.CheckHeaderFileIfndef(FullName)
-            for FullName in EccGlobalData.gHFileList:
-                MsgList = c.CheckHeaderFileIfndef(FullName)
 
     # Check whether include files NOT contain code or define data variables
     def IncludeFileCheckData(self):
@@ -1112,7 +1078,7 @@ class Check(object):
             RecordSet = EccGlobalData.gDb.TblInf.Exec(SqlCommand)
             for Record in RecordSet:
                 Path = Record[1]
-                Path = Path.upper().replace('\X64', '').replace('\IA32', '').replace('\EBC', '').replace('\IPF', '').replace('\ARM', '')
+                Path = Path.upper().replace(r'\X64', '').replace(r'\IA32', '').replace(r'\EBC', '').replace(r'\IPF', '')
                 if Path in InfPathList:
                     if not EccGlobalData.gException.IsException(ERROR_META_DATA_FILE_CHECK_MODULE_FILE_NO_USE, Record[2]):
                         EccGlobalData.gDb.TblReport.Insert(ERROR_META_DATA_FILE_CHECK_MODULE_FILE_NO_USE, OtherMsg="The source file [%s] is existing in module directory but it is not described in INF file." % (Record[2]), BelongsToTable='File', BelongsToItem=Record[0])
@@ -1372,7 +1338,6 @@ class Check(object):
     def NamingConventionCheck(self):
         if EccGlobalData.gConfig.NamingConventionCheckDefineStatement == '1' \
         or EccGlobalData.gConfig.NamingConventionCheckTypedefStatement == '1' \
-        or EccGlobalData.gConfig.NamingConventionCheckIfndefStatement == '1' \
         or EccGlobalData.gConfig.NamingConventionCheckVariableName == '1' \
         or EccGlobalData.gConfig.NamingConventionCheckSingleCharacterVariable == '1' \
         or EccGlobalData.gConfig.NamingConventionCheckAll == '1'\
@@ -1389,8 +1354,6 @@ class Check(object):
                         self.NamingConventionCheckTypedefStatement(FileTable)
                         self.NamingConventionCheckVariableName(FileTable)
                         self.NamingConventionCheckSingleCharacterVariable(FileTable)
-                        if os.path.splitext(F)[1] in ('.h'):
-                            self.NamingConventionCheckIfndefStatement(FileTable)
 
         self.NamingConventionCheckPathName()
         self.NamingConventionCheckFunctionName()
@@ -1429,21 +1392,6 @@ class Check(object):
                     if Name.upper() != Name:
                         if not EccGlobalData.gException.IsException(ERROR_NAMING_CONVENTION_CHECK_TYPEDEF_STATEMENT, Name):
                             EccGlobalData.gDb.TblReport.Insert(ERROR_NAMING_CONVENTION_CHECK_TYPEDEF_STATEMENT, OtherMsg="The #typedef name [%s] does not follow the rules" % (Name), BelongsToTable=FileTable, BelongsToItem=Record[0])
-
-    # Check whether the #ifndef at the start of an include file uses both prefix and postfix underscore characters, '_'.
-    def NamingConventionCheckIfndefStatement(self, FileTable):
-        if EccGlobalData.gConfig.NamingConventionCheckIfndefStatement == '1' or EccGlobalData.gConfig.NamingConventionCheckAll == '1' or EccGlobalData.gConfig.CheckAll == '1':
-            EdkLogger.quiet("Checking naming convention of #ifndef statement ...")
-
-            SqlCommand = """select ID, Value from %s where Model = %s""" % (FileTable, MODEL_IDENTIFIER_MACRO_IFNDEF)
-            RecordSet = EccGlobalData.gDb.TblFile.Exec(SqlCommand)
-            if RecordSet:
-                # Only check the first ifndef statement of the file
-                FirstDefine = sorted(RecordSet, key=lambda Record: Record[0])[0]
-                Name = FirstDefine[1].replace('#ifndef', '').strip()
-                if Name[0] == '_' or Name[-1] != '_' or Name[-2] == '_':
-                    if not EccGlobalData.gException.IsException(ERROR_NAMING_CONVENTION_CHECK_IFNDEF_STATEMENT, Name):
-                        EccGlobalData.gDb.TblReport.Insert(ERROR_NAMING_CONVENTION_CHECK_IFNDEF_STATEMENT, OtherMsg="The #ifndef name [%s] does not follow the rules" % (Name), BelongsToTable=FileTable, BelongsToItem=FirstDefine[0])
 
     # Rule for path name, variable name and function name
     # 1. First character should be upper case
@@ -1521,7 +1469,6 @@ def FindPara(FilePath, Para, CallingLine):
         if Line.startswith('%s = ' % Para):
             Line = Line.strip()
             return Line
-            break
 
     return ''
 

@@ -68,12 +68,19 @@ SMBIOS_TABLE_TYPE4  mSmbiosProcessorTableTemplate = {
   ProcessorFamilyIndicatorFamily2, // ProcessorFamily
   2,                               // ProcessorManufacture
   {                           // ProcessorId
+ #ifdef MDE_CPU_AARCH64
+    0,                        // SocId
+    0,                        // SipId
+    0,                        // SipBankIndex
+    0                         // SocRevision
+ #else
     {                         // Signature
       0
     },
     {                         // FeatureFlags
       0
     }
+ #endif
   },
   3,                          // ProcessorVersion
   {                           // Voltage
@@ -192,10 +199,10 @@ ConfigureCacheArchitectureInformation (
   OUT    SMBIOS_TABLE_TYPE7  *Type7Record
   )
 {
-  UINT8   Associativity;
-  UINT32  CacheSize32;
-  UINT16  CacheSize16;
-  UINT64  CacheSize64;
+  UINT8                Associativity;
+  SMBIOS_CACHE_SIZE_2  CacheSize32;
+  SMBIOS_CACHE_SIZE    CacheSize16;
+  UINT64               CacheSize64;
 
   if (!DataCache && !UnifiedCache) {
     Type7Record->SystemCacheType = CacheTypeInstruction;
@@ -223,19 +230,26 @@ ConfigureCacheArchitectureInformation (
 
   // Encode the cache size into the format SMBIOS wants
   if (CacheSize64 < MAX_INT16) {
-    CacheSize16 = CacheSize64;
-    CacheSize32 = CacheSize16;
+    CacheSize16.Size           = CacheSize64;
+    CacheSize16.Granularity64K = 0;
+    CacheSize32.Size           = CacheSize64;
+    CacheSize32.Granularity64K = 0;
   } else if ((CacheSize64 / 64) < MAX_INT16) {
-    CacheSize16 = (1 << 15) | (CacheSize64 / 64);
-    CacheSize32 = (1 << 31) | (CacheSize64 / 64);
+    CacheSize16.Size           = CacheSize64 / 64;
+    CacheSize16.Granularity64K = 1;
+    CacheSize32.Size           = CacheSize64 / 64;
+    CacheSize32.Granularity64K = 1;
   } else {
     if ((CacheSize64 / 1024) <= 2047) {
-      CacheSize32 = CacheSize64;
+      CacheSize32.Size           = CacheSize64;
+      CacheSize32.Granularity64K = 0;
     } else {
-      CacheSize32 = (1 << 31) | (CacheSize64 / 64);
+      CacheSize32.Size           = CacheSize64 / 64;
+      CacheSize32.Granularity64K = 1;
     }
 
-    CacheSize16 = -1;
+    CacheSize16.Size           = 0x7fff;
+    CacheSize16.Granularity64K = 1;
   }
 
   Type7Record->MaximumCacheSize  = CacheSize16;
@@ -709,11 +723,11 @@ AddSmbiosProcessorTypeTable (
   Type4Record->L1CacheHandle     = L1CacheHandle;
   Type4Record->L2CacheHandle     = L2CacheHandle;
   Type4Record->L3CacheHandle     = L3CacheHandle;
-  Type4Record->CoreCount         = MiscProcessorData.CoreCount;
+  Type4Record->CoreCount         = MIN (MiscProcessorData.CoreCount, MAX_UINT8);
   Type4Record->CoreCount2        = MiscProcessorData.CoreCount;
-  Type4Record->EnabledCoreCount  = MiscProcessorData.CoresEnabled;
+  Type4Record->EnabledCoreCount  = MIN (MiscProcessorData.CoresEnabled, MAX_UINT8);
   Type4Record->EnabledCoreCount2 = MiscProcessorData.CoresEnabled;
-  Type4Record->ThreadCount       = MiscProcessorData.ThreadCount;
+  Type4Record->ThreadCount       = MIN (MiscProcessorData.ThreadCount, MAX_UINT8);
   Type4Record->ThreadCount2      = MiscProcessorData.ThreadCount;
 
   Type4Record->CurrentSpeed  = GetCpuFrequency (ProcessorIndex);

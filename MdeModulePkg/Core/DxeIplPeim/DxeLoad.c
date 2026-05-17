@@ -3,7 +3,7 @@
   Responsibility of this module is to load the DXE Core from a Firmware Volume.
 
 Copyright (c) 2016 HP Development Company, L.P.
-Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2024, Intel Corporation. All rights reserved.<BR>
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -59,7 +59,7 @@ CONST EFI_PEI_NOTIFY_DESCRIPTOR  mMemoryDiscoveredNotifyList = {
   @param  FileHandle  Handle of the file being invoked.
   @param  PeiServices Describes the list of possible PEI Services.
 
-  @retval EFI_SUCESS  The entry point of DXE IPL PEIM executes successfully.
+  @retval EFI_SUCCESS The entry point of DXE IPL PEIM executes successfully.
   @retval Others      Some error occurs during the execution of this function.
 
 **/
@@ -80,7 +80,7 @@ PeimInitializeDxeIpl (
     Status = PeiServicesRegisterForShadow (FileHandle);
     if (Status == EFI_SUCCESS) {
       //
-      // EFI_SUCESS means it is the first time to call register for shadow.
+      // EFI_SUCCESS means it is the first time to call register for shadow.
       //
       return Status;
     }
@@ -162,7 +162,11 @@ InstallIplPermanentMemoryPpis (
   //
   if (ExtractHandlerNumber > 0) {
     GuidPpi = (EFI_PEI_PPI_DESCRIPTOR *)AllocatePool (ExtractHandlerNumber * sizeof (EFI_PEI_PPI_DESCRIPTOR));
-    ASSERT (GuidPpi != NULL);
+    if (GuidPpi == NULL) {
+      ASSERT (GuidPpi != NULL);
+      return EFI_OUT_OF_RESOURCES;
+    }
+
     while (ExtractHandlerNumber-- > 0) {
       GuidPpi->Flags = EFI_PEI_PPI_DESCRIPTOR_PPI | EFI_PEI_PPI_DESCRIPTOR_TERMINATE_LIST;
       GuidPpi->Ppi   = (VOID *)&mCustomGuidedSectionExtractionPpi;
@@ -487,9 +491,9 @@ DxeIplFindDxeCore (
     //
     if (EFI_ERROR (Status)) {
       REPORT_STATUS_CODE (EFI_PROGRESS_CODE, (EFI_SOFTWARE_PEI_MODULE | EFI_SW_PEI_CORE_EC_DXE_CORRUPT));
+      ASSERT_EFI_ERROR (Status);
+      break;
     }
-
-    ASSERT_EFI_ERROR (Status);
 
     //
     // Find the DxeCore file type from the beginning in this firmware volume.
@@ -509,6 +513,13 @@ DxeIplFindDxeCore (
     //
     Instance++;
   }
+
+  //
+  // DxeCore cannot find in any firmware volume.
+  //
+  CpuDeadLoop ();
+
+  return NULL;
 }
 
 /**
@@ -629,6 +640,11 @@ CustomGuidedSectionExtract (
              ScratchBuffer,
              AuthenticationStatus
              );
+
+  if (ScratchBuffer != NULL) {
+    FreePages (ScratchBuffer, EFI_SIZE_TO_PAGES (ScratchBufferSize));
+  }
+
   if (EFI_ERROR (Status)) {
     //
     // Decode failed

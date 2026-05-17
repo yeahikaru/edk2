@@ -9,8 +9,6 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 #include "InternalBm.h"
 
-#include <Library/VariablePolicyHelperLib.h>
-
 GLOBAL_REMOVE_IF_UNREFERENCED
 CHAR16  *mBmLoadOptionName[] = {
   L"Driver",
@@ -438,6 +436,10 @@ EfiBootManagerSortLoadOptionVariable (
   UINT16                        *OptionOrder;
 
   LoadOption = EfiBootManagerGetLoadOptions (&LoadOptionCount, OptionType);
+
+  if (LoadOptionCount == 0) {
+    return;
+  }
 
   //
   // Insertion sort algorithm
@@ -1414,6 +1416,17 @@ EfiBootManagerProcessLoadOption (
   //
   if ((LoadOption->Attributes & LOAD_OPTION_ACTIVE) == 0) {
     return EFI_SUCCESS;
+  }
+
+  if (LoadOption->OptionType == LoadOptionTypePlatformRecovery) {
+    //
+    // Signal the EVT_SIGNAL_READY_TO_BOOT event when we are about to load and execute the boot option.
+    //
+    EfiSignalEventReadyToBoot ();
+    //
+    // Report Status Code to indicate ReadyToBoot was signaled
+    //
+    REPORT_STATUS_CODE (EFI_PROGRESS_CODE, (EFI_SOFTWARE_DXE_BS_DRIVER | EFI_SW_DXE_BS_PC_READY_TO_BOOT_EVENT));
   }
 
   //

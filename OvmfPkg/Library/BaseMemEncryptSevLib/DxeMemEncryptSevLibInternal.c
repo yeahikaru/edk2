@@ -18,10 +18,12 @@
 #include <Uefi/UefiBaseType.h>
 #include <ConfidentialComputingGuestAttr.h>
 
-STATIC UINT64   mCurrentAttr            = 0;
-STATIC BOOLEAN  mCurrentAttrRead        = FALSE;
-STATIC UINT64   mSevEncryptionMask      = 0;
-STATIC BOOLEAN  mSevEncryptionMaskSaved = FALSE;
+STATIC UINT64   mCurrentAttr              = 0;
+STATIC BOOLEAN  mCurrentAttrRead          = FALSE;
+STATIC UINT64   mSevEncryptionMask        = 0;
+STATIC BOOLEAN  mSevEncryptionMaskSaved   = FALSE;
+STATIC BOOLEAN  mSevSnpCoherencySfwNo     = FALSE;
+STATIC BOOLEAN  mSevSnpCoherencySfwNoRead = FALSE;
 
 /**
   The function check if the specified Attr is set.
@@ -40,19 +42,25 @@ AmdMemEncryptionAttrCheck (
   IN  CONFIDENTIAL_COMPUTING_GUEST_ATTR  Attr
   )
 {
+  UINT64  CurrentLevel;
+
+  CurrentLevel = CurrentAttr & CCAttrTypeMask;
+
   switch (Attr) {
     case CCAttrAmdSev:
       //
       // SEV is automatically enabled if SEV-ES or SEV-SNP is active.
       //
-      return CurrentAttr >= CCAttrAmdSev;
+      return CurrentLevel >= CCAttrAmdSev;
     case CCAttrAmdSevEs:
       //
       // SEV-ES is automatically enabled if SEV-SNP is active.
       //
-      return CurrentAttr >= CCAttrAmdSevEs;
+      return CurrentLevel >= CCAttrAmdSevEs;
     case CCAttrAmdSevSnp:
-      return CurrentAttr == CCAttrAmdSevSnp;
+      return CurrentLevel == CCAttrAmdSevSnp;
+    case CCAttrFeatureAmdSevEsDebugVirtualization:
+      return !!(CurrentAttr & CCAttrFeatureAmdSevEsDebugVirtualization);
     default:
       return FALSE;
   }
@@ -158,4 +166,63 @@ MemEncryptSevGetEncryptionMask (
   }
 
   return mSevEncryptionMask;
+}
+
+/**
+  Returns a boolean to indicate whether DebugVirtualization is enabled.
+
+  @retval TRUE           DebugVirtualization is enabled
+  @retval FALSE          DebugVirtualization is not enabled
+**/
+BOOLEAN
+EFIAPI
+MemEncryptSevEsDebugVirtualizationIsEnabled (
+  VOID
+  )
+{
+  return ConfidentialComputingGuestHas (CCAttrFeatureAmdSevEsDebugVirtualization);
+}
+
+/**
+  Returns a boolean to indicate if the CPUID COHERENCY_SFW_NO bit is set.
+
+  @retval  TRUE      The COHERENCY_SFW_NO bit is set.
+  @retval  FALSE     The COHERENCY_SFW_NO bit is not set.
+
+**/
+STATIC
+BOOLEAN
+MemEncryptCoherencSfwNo (
+  VOID
+  )
+{
+  CPUID_MEMORY_ENCRYPTION_INFO_EBX  RegEbx;
+
+  if (!mSevSnpCoherencySfwNoRead) {
+    AsmCpuid (0x8000001F, NULL, &RegEbx.Uint32, NULL, NULL);
+    if (RegEbx.Bits.CoherencySfwNo == 1) {
+      mSevSnpCoherencySfwNo = TRUE;
+    }
+
+    mSevSnpCoherencySfwNoRead = TRUE;
+  }
+
+  return mSevSnpCoherencySfwNo;
+}
+
+/**
+  Returns a boolean to indicate whether the SEV-SNP cache line eviction
+  mitigation is needed.
+
+  @retval TRUE           Cache line eviction mitigation required
+  @retval FALSE          Cache line eviction migigation not required
+
+**/
+BOOLEAN
+EFIAPI
+MemEncryptSevSnpDoCoherencyMitigation (
+  VOID
+  )
+{
+  return MemEncryptSevSnpIsEnabled () && !MemEncryptCoherencSfwNo ();
 }

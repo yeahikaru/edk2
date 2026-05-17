@@ -6,8 +6,7 @@
 
 **/
 
-#ifndef _PLATFORM_PEI_H_INCLUDED_
-#define _PLATFORM_PEI_H_INCLUDED_
+#pragma once
 
 #include <IndustryStandard/E820.h>
 #include <Library/PlatformInitLib.h>
@@ -79,6 +78,11 @@ InstallClearCacheCallback (
   );
 
 VOID
+RelocateSmBase (
+  VOID
+  );
+
+VOID
 AmdSevInitialize (
   IN EFI_HOB_PLATFORM_INFO  *PlatformInfoHob
   );
@@ -105,5 +109,3 @@ VOID
 SevInitializeRam (
   VOID
   );
-
-#endif // _PLATFORM_PEI_H_INCLUDED_

@@ -7,8 +7,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#ifndef __SECUREBOOT_CONFIG_IMPL_H__
-#define __SECUREBOOT_CONFIG_IMPL_H__
+#pragma once
 
 #include <Uefi.h>
 
@@ -82,6 +81,8 @@ extern  EFI_IFR_GUID_LABEL  *mEndLabel;
 #define MAX_DIGEST_SIZE  SHA512_DIGEST_SIZE
 
 #define WIN_CERT_UEFI_RSA2048_SIZE  256
+#define WIN_CERT_UEFI_RSA3072_SIZE  384
+#define WIN_CERT_UEFI_RSA4096_SIZE  512
 
 //
 // Support hash types
@@ -97,6 +98,11 @@ extern  EFI_IFR_GUID_LABEL  *mEndLabel;
 // Certificate public key minimum size (bytes)
 //
 #define CER_PUBKEY_MIN_SIZE  256
+
+//
+// Define KeyType for public key storing file
+//
+#define KEY_TYPE_RSASSA  0
 
 //
 // Types of errors may occur during certificate enrollment.
@@ -601,5 +607,3 @@ EFIAPI
 UpdateDBTFromFile (
   IN EFI_DEVICE_PATH_PROTOCOL  *FilePath
   );
-
-#endif

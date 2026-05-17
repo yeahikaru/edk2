@@ -140,7 +140,112 @@ AddSingleCmObj (
                               FdtParserHandle,
                               FdtParserHandle->Context,
                               &CmObjDesc,
+                              CM_NULL_TOKEN,
                               Token
+                              );
+  ASSERT_EFI_ERROR (Status);
+  return Status;
+}
+
+/** Add a CmObj representing an array to the Configuration Manager.
+  @param  [in]  FdtParserHandle   A handle to the parser instance.
+  @param  [in]  ObjectId          CmObj ObjectId.
+  @param  [in]  Data              CmObj Data.
+  @param  [in]  Size              Total size of array, in bytes.
+  @param  [in]  Count             Count of objects in array.
+  @param  [out] Token             If provided and success,
+                                  token generated for this CmObj.
+  @retval EFI_SUCCESS             The function completed successfully.
+  @retval EFI_INVALID_PARAMETER   Invalid parameter.
+**/
+EFI_STATUS
+EFIAPI
+AddSingleCmObjArray (
+  IN  CONST FDT_HW_INFO_PARSER_HANDLE  FdtParserHandle,
+  IN        CM_OBJECT_ID               ObjectId,
+  IN        VOID                       *Data,
+  IN        UINT32                     Size,
+  IN        UINT32                     Count,
+  OUT       CM_OBJECT_TOKEN            *Token    OPTIONAL
+  )
+{
+  EFI_STATUS         Status;
+  CM_OBJ_DESCRIPTOR  CmObjDesc;
+
+  if ((FdtParserHandle == NULL)             ||
+      (FdtParserHandle->HwInfoAdd == NULL)  ||
+      (Data == NULL)                        ||
+      (Size == 0))
+  {
+    ASSERT (0);
+    return EFI_INVALID_PARAMETER;
+  }
+
+  CmObjDesc.ObjectId = ObjectId;
+  CmObjDesc.Count    = Count;
+  CmObjDesc.Data     = Data;
+  CmObjDesc.Size     = Size;
+
+  // Add the CmObj.
+  // Don't ask for a token.
+  Status = FdtParserHandle->HwInfoAdd (
+                              FdtParserHandle,
+                              FdtParserHandle->Context,
+                              &CmObjDesc,
+                              CM_NULL_TOKEN,
+                              Token
+                              );
+  ASSERT_EFI_ERROR (Status);
+  return Status;
+}
+
+/** Add a single CmObj to the Configuration Manager.
+
+  @param  [in]  FdtParserHandle   A handle to the parser instance.
+  @param  [in]  ObjectId          CmObj ObjectId.
+  @param  [in]  Data              CmObj Data.
+  @param  [in]  Size              CmObj Size.
+  @param  [out] Token             If provided and success,
+                                  token generated for this CmObj.
+
+  @retval EFI_SUCCESS             The function completed successfully.
+  @retval EFI_INVALID_PARAMETER   Invalid parameter.
+**/
+EFI_STATUS
+EFIAPI
+AddSingleCmObjWithToken (
+  IN  CONST FDT_HW_INFO_PARSER_HANDLE  FdtParserHandle,
+  IN        CM_OBJECT_ID               ObjectId,
+  IN        VOID                       *Data,
+  IN        UINT32                     Size,
+  IN  CONST CM_OBJECT_TOKEN            Token
+  )
+{
+  EFI_STATUS         Status;
+  CM_OBJ_DESCRIPTOR  CmObjDesc;
+
+  if ((FdtParserHandle == NULL)             ||
+      (FdtParserHandle->HwInfoAdd == NULL)  ||
+      (Data == NULL)                        ||
+      (Size == 0))
+  {
+    ASSERT (0);
+    return EFI_INVALID_PARAMETER;
+  }
+
+  CmObjDesc.ObjectId = ObjectId;
+  CmObjDesc.Count    = 1;
+  CmObjDesc.Data     = Data;
+  CmObjDesc.Size     = Size;
+
+  // Add the CmObj.
+  // Don't ask for a token.
+  Status = FdtParserHandle->HwInfoAdd (
+                              FdtParserHandle,
+                              FdtParserHandle->Context,
+                              &CmObjDesc,
+                              Token,
+                              NULL
                               );
   ASSERT_EFI_ERROR (Status);
   return Status;
@@ -204,6 +309,7 @@ AddMultipleCmObj (
                                 FdtParserHandle,
                                 FdtParserHandle->Context,
                                 &SingleCmObjDesc,
+                                CM_NULL_TOKEN,
                                 (TokenTable != NULL) ?
                                 &TokenTable[Index] :
                                 NULL
@@ -219,11 +325,11 @@ AddMultipleCmObj (
 
 /** Add multiple CmObj to the Configuration Manager.
 
-  Get one token referencing a EArmObjCmRef CmObj itself referencing
+  Get one token referencing a EArchCommonObjCmRef CmObj itself referencing
   the input CmObj. In the table below, RefToken is returned.
 
   Token referencing an      Array of tokens             Array of CmObj
-  array of EArmObjCmRef     referencing each            from the input:
+  array of EArchCommonObjCmRef     referencing each            from the input:
   CmObj:                    CmObj from the input:
 
   RefToken         --->     CmObjToken[0]        --->   CmObj[0]
@@ -234,7 +340,7 @@ AddMultipleCmObj (
   @param  [in]  CmObjDesc         CmObjDesc containing multiple CmObj
                                   to add.
   @param  [out] Token             If success, token referencing an array
-                                  of EArmObjCmRef CmObj, themselves
+                                  of EArchCommonObjCmRef CmObj, themselves
                                   referencing the input CmObjs.
 
   @retval EFI_SUCCESS             The function completed successfully.
@@ -286,16 +392,17 @@ AddMultipleCmObjWithCmObjRef (
     goto exit_handler;
   }
 
-  CmObjRef.ObjectId = CREATE_CM_ARM_OBJECT_ID (EArmObjCmRef);
+  CmObjRef.ObjectId = CREATE_CM_ARCH_COMMON_OBJECT_ID (EArchCommonObjCmRef);
   CmObjRef.Data     = TokenTable;
   CmObjRef.Count    = CmObjDesc->Count;
   CmObjRef.Size     = TokenTableSize;
 
-  // Add the array of EArmObjCmRef CmObjs.
+  // Add the array of EArchCommonObjCmRef CmObjs.
   Status = FdtParserHandle->HwInfoAdd (
                               FdtParserHandle,
                               FdtParserHandle->Context,
                               &CmObjRef,
+                              CM_NULL_TOKEN,
                               Token
                               );
   ASSERT_EFI_ERROR (Status);
