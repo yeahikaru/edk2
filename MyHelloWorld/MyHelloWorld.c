@@ -5,7 +5,7 @@
   License for UEFI MyHelloWorld
 **/
 
-#include <stdio.h>
+//#include <stdio.h>
 #include <Uefi.h>
 #include <Library/UefiApplicationEntryPoint.h>
 #include <Library/UefiLib.h>
@@ -20,6 +20,7 @@
 #include <Library/SmbusLib.h>
 #include <Protocol/ShellParameters.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/UefiRuntimeServicesTableLib.h>
 #include <IndustryStandard/Pci22.h>
 #include <Protocol/Shell.h>
 #include <Library/ShellLib.h>
@@ -27,9 +28,9 @@
 //#include <Protocol/PcdInfo.h>
 
 
-EFI_SYSTEM_TABLE* gST = NULL;
-EFI_BOOT_SERVICES* gBS = NULL;
-EFI_RUNTIME_SERVICES* gRT = NULL;
+//EFI_SYSTEM_TABLE* gST = NULL;
+//EFI_BOOT_SERVICES* gBS = NULL;
+//EFI_RUNTIME_SERVICES* gRT = NULL;
 
 //extern EFI_GUID gEfiSmbiosProtocolGuid;
 
@@ -499,30 +500,17 @@ VOID DumpCpuId()
 	CPUID_BRAND_STRING_DATA CpuIdBrandStringEbx;
 	CPUID_BRAND_STRING_DATA CpuIdBrandStringEcx;
 	CPUID_BRAND_STRING_DATA CpuIdBrandStringEdx;
-	CHAR8** Processor = NULL;
-	CHAR8* str = "13th Gen Intel(R) CoreT i7-13800H";
-	CHAR8* BrandString[] = {"13th Gen Intel(R) CoreT i7-13800H", 
-							"QEMU Virtual CPU version 2.5+"};
-	UINT8 i = 0;
+	CHAR8* ProcessorBuffer = NULL;
+	CHAR8** Processor = &ProcessorBuffer;
 
 	Print(L"%a\n", __FUNCTION__);
-	Print(L"Before AllocateZeroPool\n");
-	Print(L"*Pointer of Processor Addr = %x\n", *Processor);
-	//Print(L"*Processor[0] HEX = %x\n", *(*Processor));
-	//Print(L"*Processor[1] HEX = %x\n", *(*Processor + 1));
-	//Print(L"*Processor[2] HEX = %x\n", *(*Processor + 2));
-	//Print(L"*Processor[3] HEX = %x\n", *(*Processor + 3));
 
-	*Processor = AllocateZeroPool(AsciiStrLen(str) * sizeof(CHAR8));
-	
-	if (*Processor == NULL) { return;  }
-
-	Print(L"*Pointer of Processor Addr = %x\n", *Processor);
-	Print(L"After AllocateZeroPool\n");
-	//Print(L"*Processor[0] HEX = %x\n", *(*Processor));
-	//Print(L"*Processor[1] HEX = %x\n", *(*Processor + 1));
-	//Print(L"*Processor[2] HEX = %x\n", *(*Processor + 2));
-	//Print(L"*Processor[3] HEX = %x\n", *(*Processor + 3));
+	// Allocate 49 bytes (48 for brand string + 1 for null terminator)
+	*Processor = AllocateZeroPool(49);
+	if (*Processor == NULL) {
+		Print(L"Failed to allocate memory for CPU brand string\n");
+		return;
+	}
 
 	AsmCpuid(CPUID_BRAND_STRING1, &CpuIdBrandStringEax.Uint32, &CpuIdBrandStringEbx.Uint32, &CpuIdBrandStringEcx.Uint32, &CpuIdBrandStringEdx.Uint32);
 	CopyMem(*Processor + 0, &CpuIdBrandStringEax.BrandString, 4);
@@ -530,18 +518,6 @@ VOID DumpCpuId()
 	CopyMem(*Processor + 8, &CpuIdBrandStringEcx.BrandString, 4);
 	CopyMem(*Processor + 12, &CpuIdBrandStringEdx.BrandString, 4);
 
-	//Print(L"CpuIdBrandStringEax.BrandString = %c\n", CpuIdBrandStringEax.BrandString[0]);
-	//Print(L"CpuIdBrandStringEax.BrandString = %c\n", CpuIdBrandStringEax.BrandString[1]);
-	//Print(L"CpuIdBrandStringEax.BrandString = %c\n", CpuIdBrandStringEax.BrandString[2]);
-	//Print(L"CpuIdBrandStringEax.BrandString = %c\n", CpuIdBrandStringEax.BrandString[3]);
-
-	Print(L"*Pointer of Processor Addr = %x\n", *Processor);
-
-	//Print(L"*Processor[0] HEX = %c\n", *(*Processor));
-	//Print(L"*Processor[1] HEX = %c\n", *(*Processor + 1));
-	//Print(L"*Processor[2] HEX = %c\n", *(*Processor + 2));
-	//Print(L"*Processor[3] HEX = %c\n", *(*Processor + 3));
-	
 	AsmCpuid(CPUID_BRAND_STRING2, &CpuIdBrandStringEax.Uint32, &CpuIdBrandStringEbx.Uint32, &CpuIdBrandStringEcx.Uint32, &CpuIdBrandStringEdx.Uint32);
 	CopyMem(*Processor + 16, &CpuIdBrandStringEax.BrandString, 4);
 	CopyMem(*Processor + 20, &CpuIdBrandStringEbx.BrandString, 4);
@@ -553,60 +529,19 @@ VOID DumpCpuId()
 	CopyMem(*Processor + 36, &CpuIdBrandStringEbx.BrandString, 4);
 	CopyMem(*Processor + 40, &CpuIdBrandStringEcx.BrandString, 4);
 	CopyMem(*Processor + 44, &CpuIdBrandStringEdx.BrandString, 4);
-	
-	///
-	/// Remove preceeding spaces
-	///
+
+	// Null-terminate the string
+	(*Processor)[48] = 0;
+
+	// Remove preceeding spaces
 	while (**Processor == 0x20) {
 		(*Processor)++;
 	}
 
-	Print(L"%a\n", *Processor);
-
-	Print(L"AsciiStrlen of %a = %d\n", str, AsciiStrLen(str));
-	Print(L"AsciiStrlen of %a = %d\n", *Processor, AsciiStrLen(*Processor));
-	/*
-	if (!CompareMem(str, *Processor, AsciiStrLen(str)))
-	{
-		Print(L"two buffers are identical\n");
-	}
-	else
-	{
-		Print(L"two buffers are not identical\n");
-	}
-	*/
+	Print(L"Processor Brand String : %a\n", *Processor);
 	
-	for (; i < sizeof(BrandString) / sizeof(BrandString[0]); i++)
-	{
-		Print(L"BrandString[%d] = %a\n", i, BrandString[i]);
-		if (!CompareMem(BrandString[i], *Processor, AsciiStrLen(BrandString[i])))
-		{
-			Print(L"two buffers are identical\n");
-		}
-		else
-		{
-			Print(L"two buffers are not identical\n");
-		}
-	}
-
-	if (*Processor == NULL) return;
-
-	do {
-		if (!CompareMem((CHAR16*)(*Processor), "i7", sizeof(CHAR16)))
-		{
-			Print(L"word match = %c%c\n", *(*Processor), *(*Processor + 1));
-			break;
-		}
-		else
-		{
-			Print(L"word = %c%c, addr = 0x%x\n", *(*Processor), *(*Processor + 1), *Processor);
-			//Print(L"*(CHAR16*)(*Processor) HEX = 0x%x, *(CHAR16*)(*Processor) characters = %c, *(*Processor) characters = %c, Addr = 0x%x\n", *(CHAR16*)(*Processor), *(CHAR16*)(*Processor), *(*Processor), *Processor);
-			*Processor += 2;
-			//Print(L"*Processor++ word = 0x%x, characters = %s, Addr = 0x%x\n", *(CHAR16*)(*Processor), *(CHAR16*)(*Processor) , *Processor);
-		}
-	} while (AsciiStrLen(*Processor) > 0);
-
-	//gBS->FreePool(*Processor);
+	// Free the allocated memory
+	FreePool(*Processor);
 }
 
 VOID Resolution()
@@ -1097,19 +1032,43 @@ EFI_STATUS
 GetArg()
 {
 	EFI_STATUS                     Status;
-	EFI_SHELL_PARAMETERS_PROTOCOL* ShellParameters;
+	EFI_SHELL_PARAMETERS_PROTOCOL* ShellParameters = NULL;
 
+	// Get ShellParameters protocol directly from the application's image handle
 	Status = gBS->HandleProtocol(
 		gImageHandle,
 		&gEfiShellParametersProtocolGuid,
 		(VOID**)&ShellParameters
 	);
+
+	Print(L"[DEBUG] HandleProtocol on gImageHandle Status = %r\n", Status);
+
 	if (EFI_ERROR(Status)) {
+		Print(L"[DEBUG] Unable to retrieve Shell Parameters Protocol from gImageHandle: %r\n", Status);
 		return Status;
 	}
 
+	Print(L"[DEBUG] Successfully retrieved ShellParameters from gImageHandle\n");
+	Print(L"[DEBUG] ShellParameters pointer = 0x%p\n", ShellParameters);
+	Print(L"[DEBUG] ShellParameters->Argc = %d\n", ShellParameters->Argc);
+	Print(L"[DEBUG] ShellParameters->Argv = 0x%p\n", ShellParameters->Argv);
+	
+	if (ShellParameters->Argv != NULL) {
+		Print(L"[DEBUG] Argv[0] = %s\n", ShellParameters->Argv[0]);
+		if (ShellParameters->Argc > 1) {
+			Print(L"[DEBUG] Argv[1] = %s\n", ShellParameters->Argv[1]);
+		}
+		if (ShellParameters->Argc > 2) {
+			Print(L"[DEBUG] Argv[2] = %s\n", ShellParameters->Argv[2]);
+		}
+	} else {
+		Print(L"[DEBUG] Argv is NULL\n");
+	}
+	
 	Argc = ShellParameters->Argc;
 	Argv = ShellParameters->Argv;
+	
+	Print(L"[DEBUG] Final - Argc = %d, Argv = 0x%p\n", Argc, Argv);
 	
 	return Status;
 }
@@ -1154,6 +1113,8 @@ UefiMain(
 	Print(L"Program %a Entry\n\n", __FUNCTION__);
 	
 	Status = GetArg();
+
+	Print(L"GetArg Status = %r\n", Status);
 
 	if (!EFI_ERROR(Status))
 	{
