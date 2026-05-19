@@ -23,5 +23,11 @@
         "ExtendWords": [
             "indentifier) fix: (identifier"
         ]
+    },
+    "UncrustifyCheck": {
+        "AuditOnly": false,
+        "IgnoreFiles": [
+            "MyHelloWorld/MyHelloWorld.c"
+        ]
     }
 }
