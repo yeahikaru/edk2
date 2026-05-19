@@ -1,0 +1,27 @@
+##
+# CI Configuration for MyHelloWorldPkg
+##
+{
+    "PrEval": {
+        "DscPath": "MyHelloWorld.dsc",
+    },
+    "Pragmas": {
+        "ProjectMu": "Ignore"
+    },
+    "AcceptableTests": [
+        "SpellCheck",
+        "GuidCheck",
+        "LicenseCheck"
+    ],
+    "CompilerPlugin": {
+        "DscPath": "MyHelloWorld.dsc"
+    },
+    "DscCompleteCheck": {
+        "DscPath": "MyHelloWorld.dsc"
+    },
+    "SpellCheck": {
+        "ExtendWords": [
+            "indentifier) fix: (identifier"
+        ]
+    }
+}

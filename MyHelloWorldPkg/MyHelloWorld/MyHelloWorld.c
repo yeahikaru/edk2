@@ -258,7 +258,7 @@ CHAR8* DP_Type3SubType(UINT8 SubType)
 		return "Sub Type 23 - NVM Express Namespace";
 		break;
 	case 24:
-		return "Sub Type 24 - Universal Resource Indentifier(URI) Device Path";
+		return "Sub Type 24 - Universal Resource Identifier(URI) Device Path";
 		break;
 	case 25:
 		return "Sub Type 25 - UFS";

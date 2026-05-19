@@ -91,7 +91,8 @@ class Settings(CiBuildSettingsManager, UpdateSettingsManager, SetupSettingsManag
                 "RedfishPkg",
                 "SourceLevelDebugPkg",
                 "UefiPayloadPkg",
-                "TcgTpmPkg"
+                "TcgTpmPkg",
+                "MyHelloWorldPkg"
                 )
 
     def GetArchitecturesSupported(self):

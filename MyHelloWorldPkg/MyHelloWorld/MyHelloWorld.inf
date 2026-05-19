@@ -30,6 +30,7 @@
   MdeModulePkg/MdeModulePkg.dec
   MdePkg/MdePkg.dec
   ShellPkg/ShellPkg.dec
+  MyHelloWorldPkg/MyHelloWorld.dec
   
 [LibraryClasses]
   UefiApplicationEntryPoint
