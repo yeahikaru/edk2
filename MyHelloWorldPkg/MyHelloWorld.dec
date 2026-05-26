@@ -6,3 +6,9 @@
 
 [Includes]
   .
+
+[Guids.common]
+  gEfiMyAppPkgTokenSpaceGuid      = {0xceb9f0b0, 0x952d, 0x461d, {0xbe, 0x10, 0x53, 0xfa, 0xbf, 0xf7, 0x26, 0xc9}}
+
+[PcdsFeatureFlag]
+  gEfiMyAppPkgTokenSpaceGuid.MyAppEnableFeatureFlag|FALSE|BOOLEAN|0x00000001

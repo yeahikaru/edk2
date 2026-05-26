@@ -38,6 +38,7 @@
   SmbusLib
   UefiBootServicesTableLib
   ShellLib
+  PcdLib
 
 [Guids]
 
@@ -53,7 +54,7 @@
   gEfiShellProtocolGuid
   gGetPcdInfoProtocolGuid
   gEfiSimpleFileSystemProtocolGuid
+  gEfiMpServiceProtocolGuid  ## CONSUMES
 
 [FeaturePcd]
-
-[Pcd]
+  gEfiMyAppPkgTokenSpaceGuid.MyAppEnableFeatureFlag

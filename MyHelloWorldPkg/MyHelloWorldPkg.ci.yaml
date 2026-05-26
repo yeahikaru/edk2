@@ -21,6 +21,10 @@
     },
     "SpellCheck": {
         "ExtendWords": [
+            "edidexam",
+            "pcioioexam",
+            "smbiosexam",
+            "smbusexam",
             "indentifier) fix: (identifier"
         ]
     },

@@ -24,6 +24,9 @@
 #include <IndustryStandard/Pci22.h>
 #include <Protocol/Shell.h>
 #include <Library/ShellLib.h>
+#include <Pi/PiMultiPhase.h>
+#include <Protocol/MpService.h>
+#include <Library/PcdLib.h>
 
 //#include <Protocol/PcdInfo.h>
 
@@ -62,6 +65,7 @@ CHAR16** Argv;
 UINT8 S_BUS;
 UINT8 S_DEV;
 UINT8 S_FUN;
+volatile UINT64 gWorkerRuns = 0;
 
 
 
@@ -1020,6 +1024,94 @@ FreeMemory:
 	*/
 }
 
+VOID EFIAPI CPUStressTestWorker(VOID* Buffer)
+{
+	UINT64 DummyReg = 0x123456789ABCDEFULL;
+	CONST UINT64 StandardMod = 0xFFFFFFFFFFFFFFC5ULL;
+
+	/* Instrumentation: count how many times the worker started */
+	gWorkerRuns++;
+
+	// Loop indefinitely
+	while (TRUE) {
+		DummyReg = (DummyReg * DummyReg) + 0xFEEDDEED;
+		DummyReg ^= (DummyReg >> 21);
+		DummyReg = DummyReg % StandardMod;
+        
+		// Optional: If you still want to track progress in a debugger or globally:
+		// gTotalIterations++; 
+	}
+}
+
+EFI_STATUS CpuStressTest()
+{
+	EFI_STATUS Status = EFI_SUCCESS;
+	EFI_MP_SERVICES_PROTOCOL* MpServiceProtocol = NULL;
+	UINTN NumberOfProcessors = 0;
+	UINTN NumberOfEnabledProcessors = 0;
+	EFI_EVENT APWaitEvent = NULL; // Event to handle asynchronous AP execution
+	
+	Print(L"%a\n", __FUNCTION__);
+	Print(L"Initialize Continuous CPU Stress Test\n");
+	Status = gBS->LocateProtocol(&gEfiMpServiceProtocolGuid, NULL, (VOID**)&MpServiceProtocol);
+	if (EFI_ERROR(Status)) {
+		Print(L"Unable to locate MP Service Protocol: %r. Falling back to BSP.\n", Status);
+		CPUStressTestWorker(NULL);
+		return EFI_SUCCESS;
+	}
+
+	Status = MpServiceProtocol->GetNumberOfProcessors(MpServiceProtocol, &NumberOfProcessors, &NumberOfEnabledProcessors);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to get number of processors: %r. Falling back to BSP.\n", Status);
+		CPUStressTestWorker(NULL);
+		return EFI_SUCCESS;
+	}
+
+	Print(L"Processors: %lu, Enabled: %lu\n", (UINT64)NumberOfProcessors, (UINT64)NumberOfEnabledProcessors);
+
+	if (NumberOfProcessors <= 1) {
+		Print(L"Single processor system; running infinite stress on BSP.\n");
+		CPUStressTestWorker(NULL);
+		return EFI_SUCCESS;
+	}
+
+	// 1. Create a Wait Event to allow non-blocking execution
+	Status = gBS->CreateEvent(0, TPL_NOTIFY, NULL, NULL, &APWaitEvent);
+	if (EFI_ERROR(Status)) {
+		Print(L"Failed to create event: %r. Falling back to BSP.\n", Status);
+		CPUStressTestWorker(NULL);
+		return EFI_SUCCESS;
+	}
+
+	// 2. Startup all APs asynchronously
+	Status = MpServiceProtocol->StartupAllAPs(
+		MpServiceProtocol,
+		(EFI_AP_PROCEDURE)CPUStressTestWorker,
+		FALSE,         // Single Thread (False means run on all APs concurrently)
+		APWaitEvent,   // Passing a valid event forces non-blocking execution!
+		0,             // Timeout (0 means infinite/no timeout)
+		NULL,          // ProcedureArgument
+		NULL           // Finished
+	);
+
+	if (EFI_ERROR(Status)) {
+		Print(L"StartupAllAPs failed: %r. Falling back to BSP.\n", Status);
+		gBS->CloseEvent(APWaitEvent);
+		CPUStressTestWorker(NULL);
+		return EFI_SUCCESS;
+	}
+
+	Print(L"APs started successfully. Launching worker on BSP...\n");
+
+	// 3. Fire up the worker on the BSP as well. 
+	// Since CPUStressTestWorker is now an infinite loop, this will never return.
+	CPUStressTestWorker(NULL);
+
+	// The code below will never realistically be reached unless you modify the worker loop to break.
+	// But it is good practice to clean up resources.
+	gBS->CloseEvent(APWaitEvent);
+	return EFI_SUCCESS;
+}
 
 /**
 
@@ -1041,19 +1133,32 @@ GetArg()
 		(VOID**)&ShellParameters
 	);
 
-	Print(L"[DEBUG] HandleProtocol on gImageHandle Status = %r\n", Status);
+	if (FeaturePcdGet(MyAppEnableFeatureFlag)) {
+		Print(L"[DEBUG] HandleProtocol on gImageHandle Status = %r\n", Status);
+	}
 
 	if (EFI_ERROR(Status)) {
 		Print(L"[DEBUG] Unable to retrieve Shell Parameters Protocol from gImageHandle: %r\n", Status);
-		return Status;
+		Argc = 1;
+		Argv = NULL;
+		return EFI_SUCCESS;
 	}
 
-	Print(L"[DEBUG] Successfully retrieved ShellParameters from gImageHandle\n");
-	Print(L"[DEBUG] ShellParameters pointer = 0x%p\n", ShellParameters);
-	Print(L"[DEBUG] ShellParameters->Argc = %d\n", ShellParameters->Argc);
-	Print(L"[DEBUG] ShellParameters->Argv = 0x%p\n", ShellParameters->Argv);
-	
-	if (ShellParameters->Argv != NULL) {
+	if (FeaturePcdGet(MyAppEnableFeatureFlag)) {
+		Print(L"[DEBUG] Successfully retrieved ShellParameters from gImageHandle\n");
+		Print(L"[DEBUG] ShellParameters pointer = 0x%p\n", ShellParameters);
+		Print(L"[DEBUG] ShellParameters->Argc = %d\n", ShellParameters->Argc);
+		Print(L"[DEBUG] ShellParameters->Argv = 0x%p\n", ShellParameters->Argv);
+	}
+
+	if (ShellParameters->Argv == NULL) {
+		Print(L"[DEBUG] Argv is NULL\n");
+		Argc = 1;
+		Argv = NULL;
+		return EFI_SUCCESS;
+	}
+
+	if (FeaturePcdGet(MyAppEnableFeatureFlag)) {
 		Print(L"[DEBUG] Argv[0] = %s\n", ShellParameters->Argv[0]);
 		if (ShellParameters->Argc > 1) {
 			Print(L"[DEBUG] Argv[1] = %s\n", ShellParameters->Argv[1]);
@@ -1061,33 +1166,47 @@ GetArg()
 		if (ShellParameters->Argc > 2) {
 			Print(L"[DEBUG] Argv[2] = %s\n", ShellParameters->Argv[2]);
 		}
-	} else {
-		Print(L"[DEBUG] Argv is NULL\n");
 	}
-	
+
 	Argc = ShellParameters->Argc;
 	Argv = ShellParameters->Argv;
 	
-	Print(L"[DEBUG] Final - Argc = %d, Argv = 0x%p\n", Argc, Argv);
+	if (FeaturePcdGet(MyAppEnableFeatureFlag)) {
+		Print(L"[DEBUG] Final - Argc = %d, Argv = 0x%p\n", Argc, Argv);
+	}
 	
 	return Status;
 }
 
 VOID PrintHelp()
 {
-	Print(L"MyHelloWorld [-1] [-2] [-3] [-4] [-5 bdf/all] [-6]\n\n");
-	Print(L"1  - GetTimeExam\n");
-	Print(L"2  - DevicePathExam\n");
-	Print(L"3  - DumpCpuId\n");
-	Print(L"4  - Resolution\n");
-	Print(L"5  - PciIoExam\n");
+	Print(L"MyHelloWorld \
+		[Time] \
+		[DevicePath] \
+		[DumpCpuId] \
+		[Resolution] \
+		[PciIoExam bdf/all] \
+		[SmbusExam] \
+		[SmbiosExam] \
+		[EdidExam] \
+		[HandleProtocolExam] \
+		[ShellReadFile] \
+		[CpuStressTest]\n\n"
+	);
+
+	Print(L"Time  - GetTimeExam\n");
+	Print(L"DevicePath  - DevicePathExam\n");
+	Print(L"DumpCpuId  - DumpCpuId\n");
+	Print(L"Resolution  - Resolution\n");
+	Print(L"PciIoExam  - PciIoExam\n");
 	Print(L"     -bdf    Print Bus/Dev/Func\n");
 	Print(L"     -all    Print PCI Config\n");
-	Print(L"6  - SmbusExam\n");
-	Print(L"7  - SmbiosExam\n");
-	Print(L"8  - EdidExam\n");
-	Print(L"9  - HandleProtocolExam\n");
-	Print(L"10  - ShellReadFile\n");
+	Print(L"SmbusExam  - SmbusExam\n");
+	Print(L"SmbiosExam  - SmbiosExam\n");
+	Print(L"EdidExam  - EdidExam\n");
+	Print(L"HandleProtocolExam  - HandleProtocolExam\n");
+	Print(L"ShellReadFile  - ShellReadFile\n");
+	Print(L"CpuStressTest  - CpuStressTest\n");
 }
 
 /**
@@ -1114,7 +1233,9 @@ UefiMain(
 	
 	Status = GetArg();
 
-	Print(L"GetArg Status = %r\n", Status);
+	if (FeaturePcdGet(MyAppEnableFeatureFlag)) {
+		Print(L"GetArg Status = %r\n", Status);
+	}
 
 	if (!EFI_ERROR(Status))
 	{
@@ -1133,23 +1254,23 @@ UefiMain(
 			PrintHelp();
 			return Status;
 		}
-		else if (StrCmp(Argv[1], L"-1") == 0)
+		else if (StrCmp(Argv[1], L"Time") == 0 || StrCmp(Argv[1], L"time") == 0)
 		{
 			GetTimeExam();
 		}
-		else if (StrCmp(Argv[1], L"-2") == 0)
+		else if (StrCmp(Argv[1], L"DevicePath") == 0 || StrCmp(Argv[1], L"devicepath") == 0)
 		{
 			DevicePathExam(&ImageHandle);
 		}
-		else if (StrCmp(Argv[1], L"-3") == 0)
+		else if (StrCmp(Argv[1], L"DumpCpuId") == 0 || StrCmp(Argv[1], L"dumpcpuid") == 0)
 		{
 			DumpCpuId();
 		}
-		else if (StrCmp(Argv[1], L"-4") == 0)
+		else if (StrCmp(Argv[1], L"Resolution") == 0 || StrCmp(Argv[1], L"resolution") == 0)
 		{
 			Resolution();
 		}
-		else if (StrCmp(Argv[1], L"-5") == 0)
+		else if (StrCmp(Argv[1], L"PciIoExam") == 0 || StrCmp(Argv[1], L"pcioioexam") == 0)
 		{
 			if (Argc != 3) return  EFI_INVALID_PARAMETER;
 
@@ -1170,29 +1291,33 @@ UefiMain(
 				return EFI_INVALID_PARAMETER;
 			}
 		}
-		else if (StrCmp(Argv[1], L"-6") == 0)
+		else if (StrCmp(Argv[1], L"SmbusExam") == 0 || StrCmp(Argv[1], L"smbusexam") == 0)
 		{
 			SmbusExam();
 		}
-		else if (StrCmp(Argv[1], L"-p") == 0)
+		else if (StrCmp(Argv[1], L"PointerExam") == 0 || StrCmp(Argv[1], L"pointerexam") == 0)
 		{
 			PointerExam();
 		}
-		else if (StrCmp(Argv[1], L"-7") == 0)
+		else if (StrCmp(Argv[1], L"SmbiosExam") == 0 || StrCmp(Argv[1], L"smbiosexam") == 0)
 		{
 			SmbiosExam(&ImageHandle);
 		}
-		else if (StrCmp(Argv[1], L"-8") == 0)
+		else if (StrCmp(Argv[1], L"EdidExam") == 0 || StrCmp(Argv[1], L"edidexam") == 0)
 		{
 			EdidExam(&ImageHandle);
 		}
-		else if (StrCmp(Argv[1], L"-9") == 0)
+		else if (StrCmp(Argv[1], L"HandleProtocolExam") == 0 || StrCmp(Argv[1], L"handleprotocolexam") == 0)
 		{
 			HandleProtocolExam();
 		}
-		else if (StrCmp(Argv[1], L"-10") == 0)
+		else if (StrCmp(Argv[1], L"ShellReadFile") == 0 || StrCmp(Argv[1], L"shellreadfile") == 0)
 		{
 			ReadFile();
+		}
+		else if (StrCmp(Argv[1], L"CpuStressTest") == 0 || StrCmp(Argv[1], L"cpustresstest") == 0)
+		{
+			CpuStressTest();
 		}
 		else
 		{
